@@ -1,4 +1,6 @@
 ---
+import '../styles/global.css';
+
 const { title } = Astro.props;
 ---
 
@@ -9,6 +11,9 @@ const { title } = Astro.props;
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <title>{title || "Aluminios Pro | Cotizador"}</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     </head>
     <body class="m-0 w-full min-h-screen bg-slate-100 font-sans antialiased text-slate-800">
         <slot />
@@ -16,5 +21,5 @@ const { title } = Astro.props;
 </html>
 
 <style is:global>
-    /* Aquí puedes meter estilos globales si ocupas después, por ahora lo dejamos limpio */
+    body { font-family: 'Inter', sans-serif; }
 </style>

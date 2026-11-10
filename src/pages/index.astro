@@ -3,153 +3,161 @@ import Layout from '../layouts/Layout.astro';
 ---
 
 <Layout title="Cotizador de Aluminio">
-	<!-- El div principal tiene un fondo blanco (bg-slate-100) que tapa el fondo oscuro de tu Layout -->
-	<div class="min-h-screen"></div>
-		<header class="bg-blue-600 text-white shadow-md p-4 flex justify-between items-center relative z-50">
-			<h1 class="text-2xl font-bold tracking-tight m-0 text-white">Aluminios Pro</h1>
-			<nav class="flex gap-4">
-				<a href="/Cotizador" class="text-blue-200 font-medium no-underline hover:text-white">Cotizar</a>
-				<a href="/Configurador" class="text-white hover:text-blue-200 transition-colors">
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-					</svg>
-				</a>
-			</nav>
-		</header>
+    <div class="min-h-screen bg-slate-100 text-slate-800 font-sans">
+        <header class="bg-blue-600 text-white shadow-md p-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold tracking-tight m-0 text-white">Aluminios Pro</h1>
+            <nav class="flex gap-4 items-center">
+                <a href="/" class="text-blue-200 font-medium no-underline hover:text-white">Cotizar</a>
+                <a href="/configurador" class="text-white hover:text-blue-200 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </a>
+            </nav>
+        </header>
 
-		<main class="max-w-xl mx-auto p-4 mt-6 relative z-50">
-			<div class="bg-white rounded-xl shadow-lg p-6 border-t-4 border-blue-600">
-				<h2 class="text-2xl font-bold mb-6 text-gray-800">Nueva Cotización</h2>
-				
-				<form id="cotizador-form" class="space-y-5">
-					<div>
-						<label class="block text-sm font-bold text-gray-700 mb-1">Tipo de Trabajo</label>
-						<select id="tipo" class="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 font-medium text-gray-800">
-							<option value="v2">Ventana 2"</option>
-							<option value="pta3">Puerta 3"</option>
-						</select>
-					</div>
+        <main class="max-w-xl mx-auto p-4 mt-6">
+            <div class="bg-white rounded-xl shadow-lg p-6 border-t-4 border-blue-600">
+                <h2 class="text-2xl font-bold mb-6 text-gray-800">Nueva Cotización</h2>
+                
+                <form id="cotizador-form" class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Nombre del Cliente</label>
+                        <input type="text" id="cliente" placeholder="Ej. Juan Pérez" class="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-800" required>
+                    </div>
 
-					<div class="grid grid-cols-2 gap-4">
-						<div>
-							<label class="block text-sm font-bold text-gray-700 mb-1">Largo (m)</label>
-							<input type="number" id="largo" step="0.01" value="1.50" class="w-full p-3 border border-gray-300 rounded-lg text-lg text-center text-gray-800" required>
-						</div>
-						<div>
-							<label class="block text-sm font-bold text-gray-700 mb-1">Alto (m)</label>
-							<input type="number" id="alto" step="0.01" value="1.50" class="w-full p-3 border border-gray-300 rounded-lg text-lg text-center text-gray-800" required>
-						</div>
-					</div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Tipo de Trabajo</label>
+                            <select id="tipo" class="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 font-medium text-gray-800">
+                                <option value="v2">Ventana 2"</option>
+                                <option value="pta3">Puerta 3"</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Cantidad (Piezas)</label>
+                            <input type="number" id="cantidad" value="1" min="1" class="w-full p-3 border border-gray-300 rounded-lg text-lg text-center text-gray-800" required>
+                        </div>
+                    </div>
 
-					<div>
-						<label class="block text-sm font-bold text-gray-700 mb-1">Factor de Ganancia</label>
-						<input type="number" id="factor-override" step="0.1" class="w-full p-3 border border-gray-300 rounded-lg bg-yellow-50 text-center font-bold text-gray-800" title="Ajusta para dar descuento">
-					</div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Largo (m)</label>
+                            <input type="number" id="largo" step="0.01" value="1.50" class="w-full p-3 border border-gray-300 rounded-lg text-lg text-center text-gray-800" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Alto (m)</label>
+                            <input type="number" id="alto" step="0.01" value="1.50" class="w-full p-3 border border-gray-300 rounded-lg text-lg text-center text-gray-800" required>
+                        </div>
+                    </div>
 
-					<div class="mt-6 bg-slate-800 rounded-xl p-6 text-center shadow-inner">
-						<p class="text-slate-300 text-sm font-semibold uppercase tracking-wider mb-1">Precio de Venta</p>
-						<p class="text-5xl font-black text-green-400 m-0" id="precio-final">$0.00</p>
-						<p class="text-xs text-slate-500 mt-2 cursor-pointer hover:text-slate-300 transition-colors" id="toggle-costo">Costo base: <span id="costo-real" class="blur-sm select-none">$0.00</span></p>
-					</div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Factor de Ganancia</label>
+                        <input type="number" id="factor-override" step="0.1" value="2.5" class="w-full p-3 border border-gray-300 rounded-lg bg-yellow-50 text-center font-bold text-gray-800">
+                    </div>
 
-					<div class="pt-4 border-t border-gray-200">
-						<label class="block text-sm font-bold text-gray-700 mb-1">WhatsApp del Cliente</label>
-						<div class="flex gap-0">
-							<span class="inline-flex items-center px-3 text-sm text-gray-900 bg-gray-200 border border-r-0 border-gray-300 rounded-l-md font-bold">+52</span>
-							<input type="tel" id="telefono" placeholder="81 0000 0000" class="rounded-none rounded-r-lg bg-gray-50 border border-gray-300 text-gray-900 focus:ring-green-500 focus:border-green-500 block flex-1 min-w-0 w-full text-lg p-2.5">
-						</div>
-					</div>
+                    <button type="submit" id="btn-guardar" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl text-lg shadow transition-colors cursor-pointer">
+                        Calcular y Guardar en Base de Datos
+                    </button>
 
-					<button type="button" id="btn-whatsapp" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-4 rounded-xl text-lg shadow-lg flex items-center justify-center gap-2 border-0 cursor-pointer transition-colors">
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.898-4.45 9.896-9.892-.002-5.446-4.452-9.892-9.893-9.892-5.452 0-9.897 4.446-9.897 9.896 0 1.964.55 3.905 1.595 5.568l-1.096 4.004 4.093-1.076zm-1.127-10.963c-.156-.347-.323-.353-.464-.359-.133-.005-.286-.005-.443-.005-.156 0-.411.059-.625.292-.213.233-.812.793-.812 1.933 0 1.14.832 2.244.949 2.399.117.155 1.63 2.492 3.946 3.487 1.348.577 1.942.748 2.684.717.593-.024 1.815-.742 2.072-1.46.257-.718.257-1.332.18-1.46-.077-.128-.286-.205-.599-.362-.313-.157-1.849-.914-2.135-1.018-.286-.104-.495-.157-.704.157-.209.313-.807 1.018-.988 1.228-.182.209-.364.233-.677.076-.313-.157-1.32-.487-2.515-1.554-.928-.827-1.553-1.85-1.735-2.164-.182-.313-.02-.482.137-.639.141-.14.313-.365.469-.548.156-.183.208-.313.313-.522.104-.209.052-.391-.026-.548-.078-.157-.704-1.697-.964-2.322z"/></svg>
-						Enviar WhatsApp
-					</button>
-				</form>
-			</div>
-		</main>
-	</div>
+                    <div class="mt-6 bg-slate-800 rounded-xl p-6 text-center shadow-inner">
+                        <p class="text-slate-300 text-sm font-semibold uppercase tracking-wider mb-1">Precio de Venta (<span id="res-cant">1</span> pza)</p>
+                        <p class="text-5xl font-black text-green-400 m-0" id="precio-final">$0.00</p>
+                        <p class="text-xs text-slate-400 mt-2 cursor-pointer hover:text-slate-200 transition-colors" id="toggle-costo">
+                            Costo base: <span id="costo-real" class="blur-sm select-none">$0.00</span> (clic para ver)
+                        </p>
+                    </div>
+
+                    <div class="pt-4 border-t border-gray-200">
+                        <label class="block text-sm font-bold text-gray-700 mb-1">WhatsApp del Cliente</label>
+                        <div class="flex gap-0">
+                            <span class="inline-flex items-center px-3 text-sm text-gray-900 bg-gray-200 border border-r-0 border-gray-300 rounded-l-lg font-bold">+52</span>
+                            <input type="tel" id="telefono" placeholder="81 0000 0000" class="rounded-none rounded-r-lg bg-gray-50 border border-gray-300 text-gray-900 focus:ring-green-500 focus:border-green-500 block flex-1 min-w-0 w-full text-lg p-2.5">
+                        </div>
+                    </div>
+
+                    <button type="button" id="btn-whatsapp" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-4 rounded-xl text-lg shadow-lg flex items-center justify-center gap-2 border-0 cursor-pointer transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.898-4.45 9.896-9.892-.002-5.446-4.452-9.892-9.893-9.892-5.452 0-9.897 4.446-9.897 9.896 0 1.964.55 3.905 1.595 5.568l-1.096 4.004 4.093-1.076zm-1.127-10.963c-.156-.347-.323-.353-.464-.359-.133-.005-.286-.005-.443-.005-.156 0-.411.059-.625.292-.213.233-.812.793-.812 1.933 0 1.14.832 2.244.949 2.399.117.155 1.63 2.492 3.946 3.487 1.348.577 1.942.748 2.684.717.593-.024 1.815-.742 2.072-1.46.257-.718.257-1.332.18-1.46-.077-.128-.286-.205-.599-.362-.313-.157-1.849-.914-2.135-1.018-.286-.104-.495-.157-.704.157-.209.313-.807 1.018-.988 1.228-.182.209-.364.233-.677.076-.313-.157-1.32-.487-2.515-1.554-.928-.827-1.553-1.85-1.735-2.164-.182-.313-.02-.482.137-.639.141-.14.313-.365.469-.548.156-.183.208-.313.313-.522.104-.209.052-.391-.026-.548-.078-.157-.704-1.697-.964-2.322z"/></svg>
+                        Enviar por WhatsApp
+                    </button>
+                </form>
+            </div>
+        </main>
+    </div>
 </Layout>
 
 <script is:inline>
-	const configDefault = { riel: 50, jamba: 50, zoclo: 50, cercoFijo: 50, traslape: 50, cercoChapa: 50, mosquitero: 50, vidrio: 50, herrajes: 5, factor: 2.5 };
+    const form = document.getElementById('cotizador-form');
+    const toggleBtn = document.getElementById('toggle-costo');
+    const btnWa = document.getElementById('btn-whatsapp');
 
-	function obtenerConfig() {
-		const guardado = localStorage.getItem('preciosAluminio');
-		return guardado ? JSON.parse(guardado) : configDefault;
-	}
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btnGuardar = document.getElementById('btn-guardar');
+        btnGuardar.innerText = 'Calculando y guardando...';
+        btnGuardar.disabled = true;
 
-	function calcularCotizacion() {
-		const cfg = obtenerConfig();
-		const tipo = document.getElementById('tipo').value;
-		const largo = parseFloat(document.getElementById('largo').value) || 0;
-		const alto = parseFloat(document.getElementById('alto').value) || 0;
-		
-		let factorOverride = parseFloat(document.getElementById('factor-override').value);
-		if (isNaN(factorOverride)) {
-			factorOverride = cfg.factor;
-			document.getElementById('factor-override').value = cfg.factor;
-		}
+        const data = {
+            cliente: document.getElementById('cliente').value,
+            tipo: document.getElementById('tipo').value,
+            cantidad: parseInt(document.getElementById('cantidad').value) || 1,
+            largo: parseFloat(document.getElementById('largo').value) || 0,
+            alto: parseFloat(document.getElementById('alto').value) || 0,
+            factor: parseFloat(document.getElementById('factor-override').value) || 2.5
+        };
 
-		let costoTotal = 0;
+        try {
+            const response = await fetch('/api/cotizar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
 
-		if (tipo === 'v2') {
-			costoTotal += (largo / 6.1) * cfg.riel;
-			costoTotal += ((largo + alto + largo) / 6.1) * cfg.jamba;
-			costoTotal += ((largo * 4) / 6) * cfg.zoclo;
-			costoTotal += (alto / 6.1) * cfg.cercoFijo;
-			costoTotal += ((alto * 2) / 6.1) * cfg.traslape;
-			costoTotal += (largo / 6.1) * cfg.cercoChapa;
-			costoTotal += (6.1 / 3.6) * cfg.mosquitero;
-			costoTotal += ((largo * alto) / 4.68) * cfg.vidrio;
-			costoTotal += cfg.herrajes;
-		} else if (tipo === 'pta3') {
-			costoTotal += (largo / 6.1) * cfg.riel;
-			costoTotal += ((largo + alto + largo) / 6.1) * cfg.jamba;
-			costoTotal += ((largo * 4) / 6) * cfg.zoclo;
-			costoTotal += (alto / 6.1) * cfg.cercoFijo;
-			costoTotal += ((alto * 2) / 6.1) * cfg.traslape;
-			costoTotal += (largo / 6.1) * cfg.cercoChapa;
-			costoTotal += ((largo * alto) / 4.68) * cfg.vidrio;
-			costoTotal += cfg.herrajes; 
-		}
+            const result = await response.json();
 
-		const precioVenta = costoTotal * factorOverride;
+            if (result.success) {
+                document.getElementById('res-cant').innerText = data.cantidad;
+                document.getElementById('precio-final').innerText = '$' + result.precioVenta.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                document.getElementById('costo-real').innerText = '$' + result.costoReal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                btnGuardar.innerText = '¡Cotización Guardada! (Recalcular)';
+            } else {
+                alert('Error al guardar en la base de datos. Revisa las variables de entorno en Vercel.');
+                btnGuardar.innerText = 'Calcular y Guardar en Base de Datos';
+            }
+        } catch (err) {
+            alert('Error de conexión con el servidor.');
+            btnGuardar.innerText = 'Calcular y Guardar en Base de Datos';
+        } finally {
+            btnGuardar.disabled = false;
+        }
+    });
 
-		document.getElementById('precio-final').innerText = '$' + precioVenta.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-		document.getElementById('costo-real').innerText = '$' + costoTotal.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-	}
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            const costoReal = document.getElementById('costo-real');
+            if (costoReal) costoReal.classList.toggle('blur-sm');
+        });
+    }
 
-	['tipo', 'largo', 'alto', 'factor-override'].forEach(id => {
-		const el = document.getElementById(id);
-		if (el) el.addEventListener('input', calcularCotizacion);
-	});
-
-	const toggleBtn = document.getElementById('toggle-costo');
-	if (toggleBtn) {
-		toggleBtn.addEventListener('click', () => {
-			const costoReal = document.getElementById('costo-real');
-			if (costoReal) costoReal.classList.toggle('blur-sm');
-		});
-	}
-
-	const btnWa = document.getElementById('btn-whatsapp');
-	if (btnWa) {
-		btnWa.addEventListener('click', () => {
-			const telefonoEl = document.getElementById('telefono');
-			const tel = telefonoEl ? telefonoEl.value.replace(/\D/g, '') : '';
-			if(tel.length < 10) { alert('Compadre, pon un teléfono válido de 10 dígitos.'); return; }
-			
-			const tipoSelect = document.getElementById('tipo');
-			const tipoText = tipoSelect ? tipoSelect.options[tipoSelect.selectedIndex].text : '';
-			const largo = document.getElementById('largo') ? document.getElementById('largo').value : '';
-			const alto = document.getElementById('alto') ? document.getElementById('alto').value : '';
-			const precio = document.getElementById('precio-final') ? document.getElementById('precio-final').innerText : '';
-			
-			const mensaje = `¡Hola! Aquí tienes la cotización de tu proyecto:\n\n*Producto:* ${tipoText}\n*Medidas:* ${largo}m x ${alto}m\n*Precio Estimado:* ${precio}\n\nQuedamos a tus órdenes.`;
-			window.open(`https://wa.me/52${tel}?text=${encodeURIComponent(mensaje)}`, '_blank');
-		});
-	}
-
-	window.addEventListener('DOMContentLoaded', calcularCotizacion);
-</script>git
+    if (btnWa) {
+        btnWa.addEventListener('click', () => {
+            const telefonoEl = document.getElementById('telefono');
+            const tel = telefonoEl ? telefonoEl.value.replace(/\D/g, '') : '';
+            if (tel.length < 10) {
+                alert('Compadre, pon un teléfono válido de 10 dígitos.');
+                return;
+            }
+            
+            const tipoSelect = document.getElementById('tipo');
+            const tipoText = tipoSelect ? tipoSelect.options[tipoSelect.selectedIndex].text : '';
+            const cantidad = document.getElementById('cantidad').value;
+            const largo = document.getElementById('largo').value;
+            const alto = document.getElementById('alto').value;
+            const precio = document.getElementById('precio-final').innerText;
+            
+            const mensaje = `¡Hola! Aquí tienes la cotización de tu proyecto:\n\n*Producto:* ${cantidad}x ${tipoText}\n*Medidas:* ${largo}m x ${alto}m\n*Precio Estimado:* ${precio}\n\nQuedamos a tus órdenes.`;
+            window.open(`https://wa.me/52${tel}?text=${encodeURIComponent(mensaje)}`, '_blank');
+        });
+    }
+</script>
