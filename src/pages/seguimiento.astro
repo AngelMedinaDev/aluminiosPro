@@ -1,0 +1,282 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { createClient } from '@supabase/supabase-js';
+
+export const prerender = false;
+
+const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || import.meta.env.SUPABASE_URL;
+const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+const { data: cotizaciones, error } = await supabase
+    .from('cotizaciones')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+const lista = cotizaciones || [];
+
+const obtenerEstatus = (c: any) => c.estatus || c.detalles_json?.estatus || 'Pendiente';
+
+// Métricas rápidas para tu negocio
+const totalProspectos = lista.length;
+const totalVendido = lista
+    .filter((c: any) => obtenerEstatus(c) === 'Vendido')
+    .reduce((acc: number, c: any) => acc + (Number(c.total) || 0), 0);
+const totalEnSeguimiento = lista
+    .filter((c: any) => obtenerEstatus(c) === 'Pendiente')
+    .reduce((acc: number, c: any) => acc + (Number(c.total) || 0), 0);
+
+function obtenerNombreTipo(tipo: any) {
+    if (tipo === 'v2') return 'Ventana 2"';
+    if (tipo === 'pta3') return 'Puerta 3"';
+    return tipo || 'Trabajo';
+}
+---
+
+<Layout title="Seguimiento de Clientes | Aluminios Pro">
+    <div class="min-h-screen bg-slate-100 text-slate-800 font-sans">
+        <header class="bg-blue-600 text-white shadow-md p-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold tracking-tight m-0 text-white">Aluminios Pro</h1>
+            <nav class="flex gap-6 items-center">
+                <a href="/" class="text-blue-100 hover:text-white font-medium no-underline transition-colors">Cotizar</a>
+                <a href="/seguimiento" class="text-white font-bold no-underline border-b-2 border-white pb-0.5">Seguimiento</a>
+                <a href="/configurador" class="text-blue-100 hover:text-white transition-colors" title="Configurar Precios">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </a>
+            </nav>
+        </header>
+
+        <main class="max-w-5xl mx-auto p-4 mt-6 space-y-6">
+            <!-- Tarjetas de Resumen -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-white p-5 rounded-xl shadow border-l-4 border-blue-600">
+                    <p class="text-xs font-bold uppercase text-slate-400 m-0">Prospectos Guardados</p>
+                    <p class="text-3xl font-black text-slate-800 mt-1 mb-0">{totalProspectos}</p>
+                </div>
+                <div class="bg-white p-5 rounded-xl shadow border-l-4 border-amber-500">
+                    <p class="text-xs font-bold uppercase text-slate-400 m-0">Dinero en Seguimiento (Pendientes)</p>
+                    <p class="text-3xl font-black text-amber-600 mt-1 mb-0">
+                        ${totalEnSeguimiento.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                </div>
+                <div class="bg-white p-5 rounded-xl shadow border-l-4 border-green-600">
+                    <p class="text-xs font-bold uppercase text-slate-400 m-0">Total Cerrado (Vendidos)</p>
+                    <p class="text-3xl font-black text-green-600 mt-1 mb-0">
+                        ${totalVendido.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                </div>
+            </div>
+
+            <!-- Contenedor Principal del Historial -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden border-t-4 border-blue-600">
+                <div class="p-5 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800 m-0">Historial de Prospectos</h2>
+                        <p class="text-sm text-slate-500 m-0">Clientes a los que ya se les envió cotización por WhatsApp</p>
+                    </div>
+                    <select id="filtro-estatus" class="p-2 border border-slate-300 rounded-lg text-sm font-medium bg-slate-50 w-full sm:w-auto">
+                        <option value="Todos">Todos los estatus</option>
+                        <option value="Pendiente">Solo Pendientes</option>
+                        <option value="Vendido">Solo Vendidos</option>
+                        <option value="Descartado">Descartados</option>
+                    </select>
+                </div>
+
+                {error && (
+                    <div class="p-4 bg-red-50 text-red-700 text-sm">
+                        Error al cargar cotizaciones: {error.message}
+                    </div>
+                )}
+
+                <!-- VISTA MÓVIL (Tarjetas apiladas para celular) -->
+                <div class="block sm:hidden divide-y divide-slate-200">
+                    {lista.length === 0 ? (
+                        <div class="p-8 text-center text-slate-400">
+                            Aún no hay prospectos guardados.
+                        </div>
+                    ) : (
+                        lista.map((item: any) => {
+                            const det = item.detalles_json || {};
+                            const estatus = obtenerEstatus(item);
+                            const tel = item.cliente_telefono || det.telefono || '';
+                            const nombreTrabajo = obtenerNombreTipo(det.tipo);
+                            const fecha = new Date(item.created_at).toLocaleDateString('es-MX', {
+                                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                            });
+                            const totalFmt = '$' + (Number(item.total) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            const msgSeguimiento = `¡Hola ${item.cliente_nombre}! Te escribo de Aluminios Pro para saber si tuviste oportunidad de revisar la cotización de tu ${nombreTrabajo} (${totalFmt}). ¿Tienes alguna duda?`;
+
+                            return (
+                                <div class="p-4 space-y-3 bg-white fila-prospecto" data-estatus={estatus}>
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <p class="font-bold text-slate-900 text-base m-0">{item.cliente_nombre}</p>
+                                            <p class="text-xs text-slate-500 m-0">+52 {tel} • {fecha}</p>
+                                        </div>
+                                        <span class="font-black text-green-600 text-lg">{totalFmt}</span>
+                                    </div>
+                                    <div class="bg-slate-50 p-2.5 rounded-lg text-xs text-slate-700">
+                                        <p class="font-semibold m-0">{det.cantidad || 1}x {nombreTrabajo} ({det.largo || 0}m x {det.alto || 0}m)</p>
+                                        {det.costo_real && <p class="text-slate-400 m-0 mt-0.5">Costo base: ${Number(det.costo_real).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
+                                    </div>
+                                    <div class="flex justify-between items-center pt-2 gap-2">
+                                        <select
+                                            class="select-estatus p-2 rounded-lg border text-xs font-bold bg-white w-1/2 cursor-pointer"
+                                            data-id={item.id}
+                                            data-detalles={JSON.stringify(det)}
+                                        >
+                                            <option value="Pendiente" selected={estatus === 'Pendiente'}>⏳ Pendiente</option>
+                                            <option value="Vendido" selected={estatus === 'Vendido'}>✅ Vendido</option>
+                                            <option value="Descartado" selected={estatus === 'Descartado'}>❌ Descartado</option>
+                                        </select>
+                                        {tel && (
+                                            <a
+                                                href={`https://wa.me/52${tel}?text=${encodeURIComponent(msgSeguimiento)}`}
+                                                target="_blank"
+                                                class="flex-1 text-center bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2.5 px-3 rounded-lg no-underline shadow"
+                                            >
+                                                📲 Dar Seguimiento
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+
+                <!-- VISTA ESCRITORIO (Tabla limpia para pantallas medianas y grandes) -->
+                <div class="hidden sm:block overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider border-b border-slate-200">
+                                <th class="p-4">Fecha</th>
+                                <th class="p-4">Cliente / WhatsApp</th>
+                                <th class="p-4">Trabajo y Medidas</th>
+                                <th class="p-4">Total Cotizado</th>
+                                <th class="p-4">Estatus</th>
+                                <th class="p-4 text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 text-sm">
+                            {lista.length === 0 ? (
+                                <tr>
+                                    <td colspan="6" class="p-8 text-center text-slate-400">
+                                        Aún no hay prospectos guardados. Envía una cotización por WhatsApp para verla aquí.
+                                    </td>
+                                </tr>
+                            ) : (
+                                lista.map((item: any) => {
+                                    const det = item.detalles_json || {};
+                                    const estatus = obtenerEstatus(item);
+                                    const tel = item.cliente_telefono || det.telefono || '';
+                                    const nombreTrabajo = obtenerNombreTipo(det.tipo);
+                                    const fecha = new Date(item.created_at).toLocaleDateString('es-MX', {
+                                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                                    });
+                                    const descTrabajo = `${det.cantidad || 1}x ${nombreTrabajo} (${det.largo || 0}m x ${det.alto || 0}m)`;
+                                    const totalFmt = '$' + (Number(item.total) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                    const msgSeguimiento = `¡Hola ${item.cliente_nombre}! Te escribo de Aluminios Pro para saber si tuviste oportunidad de revisar la cotización de tu ${nombreTrabajo} (${totalFmt}). ¿Tienes alguna duda?`;
+
+                                    return (
+                                        <tr class="hover:bg-slate-50 fila-prospecto" data-estatus={estatus}>
+                                            <td class="p-4 text-slate-500 whitespace-nowrap">{fecha}</td>
+                                            <td class="p-4">
+                                                <p class="font-bold text-slate-800 m-0">{item.cliente_nombre}</p>
+                                                <p class="text-xs text-slate-500 m-0">+52 {tel}</p>
+                                            </td>
+                                            <td class="p-4">
+                                                <p class="font-medium text-slate-700 m-0">{descTrabajo}</p>
+                                                {det.costo_real && (
+                                                    <p class="text-xs text-slate-400 m-0">
+                                                        Costo base: ${Number(det.costo_real).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </p>
+                                                )}
+                                            </td>
+                                            <td class="p-4 font-black text-green-600 text-base whitespace-nowrap">
+                                                {totalFmt}
+                                            </td>
+                                            <td class="p-4">
+                                                <select
+                                                    class="select-estatus p-1.5 rounded-lg border text-xs font-bold cursor-pointer"
+                                                    data-id={item.id}
+                                                    data-detalles={JSON.stringify(det)}
+                                                >
+                                                    <option value="Pendiente" selected={estatus === 'Pendiente'}>⏳ Pendiente</option>
+                                                    <option value="Vendido" selected={estatus === 'Vendido'}>✅ Vendido</option>
+                                                    <option value="Descartado" selected={estatus === 'Descartado'}>❌ Descartado</option>
+                                                </select>
+                                            </td>
+                                            <td class="p-4 text-center">
+                                                {tel && (
+                                                    <a
+                                                        href={`https://wa.me/52${tel}?text=${encodeURIComponent(msgSeguimiento)}`}
+                                                        target="_blank"
+                                                        class="inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs font-bold px-3 py-2 rounded-lg no-underline transition-colors shadow"
+                                                    >
+                                                        Dar Seguimiento
+                                                    </a>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+</Layout>
+
+<script is:inline>
+    const filtro = document.getElementById('filtro-estatus');
+    if (filtro) {
+        filtro.addEventListener('change', () => {
+            const valor = filtro.value;
+            document.querySelectorAll('.fila-prospecto').forEach(fila => {
+                if (valor === 'Todos' || fila.dataset.estatus === valor) {
+                    fila.style.display = '';
+                } else {
+                    fila.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    document.querySelectorAll('.select-estatus').forEach(select => {
+        select.addEventListener('change', async (e) => {
+            const el = e.target;
+            const id = el.dataset.id;
+            const detallesActuales = JSON.parse(el.dataset.detalles || '{}');
+            const nuevoEstatus = el.value;
+
+            el.disabled = true;
+            try {
+                const res = await fetch('/api/seguimiento', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: Number(id),
+                        estatusActual: nuevoEstatus,
+                        detallesActuales
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('No se pudo actualizar el estatus: ' + data.message);
+                }
+            } catch (err) {
+                alert('Error de conexión al actualizar estatus.');
+            } finally {
+                el.disabled = false;
+            }
+        });
+    });
+</script>
