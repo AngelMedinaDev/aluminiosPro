@@ -53,14 +53,38 @@ import Layout from '../layouts/Layout.astro';
                         <input type="number" id="factor-override" step="0.1" value="2.5" class="w-full p-3 border border-gray-300 rounded-lg bg-yellow-50 text-center font-bold text-gray-800">
                     </div>
 
-                    <div class="mt-6 bg-slate-800 rounded-xl p-6 text-center shadow-inner">
-                        <p class="text-slate-300 text-sm font-semibold uppercase tracking-wider mb-1">
-                            Precio de Venta (<span id="res-cant">1</span> pza)
+                    <!-- Cuadro de Precio de la Pieza Actual -->
+                    <div class="mt-4 bg-slate-800 rounded-xl p-5 text-center shadow-inner">
+                        <p class="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-1">
+                            Subtotal pieza actual (<span id="res-cant">1</span> pza)
                         </p>
-                        <p class="text-5xl font-black text-green-400 m-0" id="precio-final">$0.00</p>
+                        <p class="text-4xl font-black text-green-400 m-0" id="precio-final">$0.00</p>
                         <p class="text-xs text-slate-400 mt-2 cursor-pointer hover:text-slate-200 transition-colors" id="toggle-costo">
                             Costo base: <span id="costo-real" class="blur-sm select-none">$0.00</span> (clic para ver)
                         </p>
+
+                        <button type="button" id="btn-agregar-partida" class="mt-4 w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-4 rounded-lg text-sm shadow transition-colors cursor-pointer border-0">
+                            + Agregar esta pieza a la lista del cliente
+                        </button>
+                    </div>
+
+                    <!-- CARRITO DE PARTIDAS (Se muestra cuando agregas 1 o más piezas) -->
+                    <div id="carrito-container" class="hidden border-2 border-blue-100 bg-blue-50/40 rounded-xl p-4 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-sm font-bold text-slate-800 m-0 uppercase tracking-wide">
+                                Partidas en esta cotización (<span id="carrito-count">0</span>)
+                            </h3>
+                            <button type="button" id="btn-vaciar-carrito" class="text-xs text-red-600 hover:underline bg-transparent border-0 cursor-pointer font-semibold">
+                                Vaciar lista
+                            </button>
+                        </div>
+
+                        <div id="carrito-lista" class="divide-y divide-slate-200 text-sm bg-white rounded-lg border border-slate-200 overflow-hidden"></div>
+
+                        <div class="flex justify-between items-center pt-2 border-t border-slate-200">
+                            <span class="text-sm font-bold text-slate-700">GRAN TOTAL CLIENTE:</span>
+                            <span id="carrito-gran-total" class="text-2xl font-black text-blue-700">$0.00</span>
+                        </div>
                     </div>
 
                     <!-- SECCIÓN DE SEGUIMIENTO REAL -->
@@ -97,24 +121,36 @@ import Layout from '../layouts/Layout.astro';
     const toggleBtn = document.getElementById('toggle-costo');
     const btnWa = document.getElementById('btn-whatsapp');
     const btnWaText = document.getElementById('btn-wa-text');
+    const btnAgregarPartida = document.getElementById('btn-agregar-partida');
+    const btnVaciarCarrito = document.getElementById('btn-vaciar-carrito');
 
-    function obtenerDatosFormulario(guardarEnBD = false) {
+    let ultimoPrecioCalculado = 0;
+    let ultimoCostoCalculado = 0;
+    let partidasCarrito = [];
+
+    const fmtMXN = (n) => '$' + (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function obtenerDatosActuales(guardarEnBD = false) {
         const telLimpio = (document.getElementById('telefono').value || '').replace(/\D/g, '');
+        const tipoSelect = document.getElementById('tipo');
+        const tipoNombre = tipoSelect ? tipoSelect.options[tipoSelect.selectedIndex].text : '';
+
         return {
             cliente: document.getElementById('cliente').value.trim(),
             telefono: telLimpio,
             tipo: document.getElementById('tipo').value,
+            tipoNombre: tipoNombre,
             cantidad: parseInt(document.getElementById('cantidad').value) || 1,
             largo: parseFloat(document.getElementById('largo').value) || 0,
             alto: parseFloat(document.getElementById('alto').value) || 0,
             factor: parseFloat(document.getElementById('factor-override').value) || 2.5,
+            partidas: partidasCarrito,
             guardar: guardarEnBD
         };
     }
 
-    // 1. Calcular en vivo en el servidor (SIN guardar en Supabase)
     async function calcularEnVivo() {
-        const data = obtenerDatosFormulario(false);
+        const data = obtenerDatosActuales(false);
         document.getElementById('res-cant').innerText = data.cantidad;
 
         try {
@@ -126,21 +162,97 @@ import Layout from '../layouts/Layout.astro';
             const result = await response.json();
 
             if (result.success) {
-                document.getElementById('precio-final').innerText = '$' + result.precioVenta.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                document.getElementById('costo-real').innerText = '$' + result.costoReal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                ultimoPrecioCalculado = result.precioVenta;
+                ultimoCostoCalculado = result.costoReal;
+                document.getElementById('precio-final').innerText = fmtMXN(result.precioVenta);
+                document.getElementById('costo-real').innerText = fmtMXN(result.costoReal);
             }
         } catch (err) {
             console.error('Error al calcular:', err);
         }
     }
 
-    // Escuchar cambios en los inputs para recalcular automáticamente
+    function renderizarCarrito() {
+        const container = document.getElementById('carrito-container');
+        const listaEl = document.getElementById('carrito-lista');
+        const countEl = document.getElementById('carrito-count');
+        const granTotalEl = document.getElementById('carrito-gran-total');
+
+        if (partidasCarrito.length === 0) {
+            container.classList.add('hidden');
+            return;
+        }
+
+        container.classList.remove('hidden');
+        countEl.innerText = partidasCarrito.length;
+
+        let sumaTotal = 0;
+        listaEl.innerHTML = '';
+
+        partidasCarrito.forEach((item, index) => {
+            sumaTotal += item.subtotal;
+            const fila = document.createElement('div');
+            fila.className = 'p-3 flex justify-between items-center hover:bg-slate-50';
+            fila.innerHTML = `
+                <div>
+                    <p class="font-bold text-slate-800 m-0">${item.cantidad}x ${item.tipoNombre}</p>
+                    <p class="text-xs text-slate-500 m-0">Medidas: ${item.largo}m x ${item.alto}m</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="font-bold text-green-600">${fmtMXN(item.subtotal)}</span>
+                    <button type="button" data-idx="${index}" class="btn-quitar-item text-xs bg-red-50 text-red-600 hover:bg-red-100 font-bold px-2 py-1 rounded border-0 cursor-pointer">
+                        ✕
+                    </button>
+                </div>
+            `;
+            listaEl.appendChild(fila);
+        });
+
+        granTotalEl.innerText = fmtMXN(sumaTotal);
+
+        document.querySelectorAll('.btn-quitar-item').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(e.currentTarget.dataset.idx);
+                partidasCarrito.splice(idx, 1);
+                renderizarCarrito();
+            });
+        });
+    }
+
+    if (btnAgregarPartida) {
+        btnAgregarPartida.addEventListener('click', async () => {
+            await calcularEnVivo();
+            const actual = obtenerDatosActuales(false);
+            if (actual.largo <= 0 || actual.alto <= 0) {
+                alert('Pon medidas válidas mayores a 0 para agregar la pieza.');
+                return;
+            }
+            partidasCarrito.push({
+                tipo: actual.tipo,
+                tipoNombre: actual.tipoNombre,
+                cantidad: actual.cantidad,
+                largo: actual.largo,
+                alto: actual.alto,
+                factor: actual.factor,
+                costo: ultimoCostoCalculado,
+                subtotal: ultimoPrecioCalculado
+            });
+            renderizarCarrito();
+        });
+    }
+
+    if (btnVaciarCarrito) {
+        btnVaciarCarrito.addEventListener('click', () => {
+            partidasCarrito = [];
+            renderizarCarrito();
+        });
+    }
+
     ['tipo', 'cantidad', 'largo', 'alto', 'factor-override'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', calcularEnVivo);
     });
 
-    // Destapar/ocultar costo base
     if (toggleBtn) {
         toggleBtn.addEventListener('click', () => {
             const costoReal = document.getElementById('costo-real');
@@ -148,10 +260,9 @@ import Layout from '../layouts/Layout.astro';
         });
     }
 
-    // 2. Enviar por WhatsApp Y Guardar prospecto real en Supabase
     if (btnWa) {
         btnWa.addEventListener('click', async () => {
-            const data = obtenerDatosFormulario(true);
+            const data = obtenerDatosActuales(true);
 
             if (!data.cliente) {
                 alert('Compadre, ponle el nombre del cliente para poder darle seguimiento.');
@@ -180,14 +291,23 @@ import Layout from '../layouts/Layout.astro';
                     alert('Aviso: No se pudo guardar en la base de datos (' + (result.message || 'Error') + '), pero te abriremos WhatsApp.');
                 }
 
-                const precioFormateado = '$' + result.precioVenta.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                document.getElementById('precio-final').innerText = precioFormateado;
+                const totalFinalFmt = fmtMXN(result.precioVenta);
 
-                const tipoSelect = document.getElementById('tipo');
-                const tipoText = tipoSelect ? tipoSelect.options[tipoSelect.selectedIndex].text : '';
+                let desgloseLineas = '';
+                if (partidasCarrito.length > 0) {
+                    desgloseLineas = partidasCarrito.map((p, i) =>
+                        `${i + 1}. *${p.cantidad}x ${p.tipoNombre}* (${p.largo}m x ${p.alto}m) - ${fmtMXN(p.subtotal)}`
+                    ).join('\n');
+                } else {
+                    desgloseLineas = `• *${data.cantidad}x ${data.tipoNombre}* (${data.largo}m x ${data.alto}m) - ${totalFinalFmt}`;
+                }
 
-                const mensaje = `¡Hola ${data.cliente}! Aquí tienes la cotización de tu proyecto:\n\n*Producto:* ${data.cantidad}x ${tipoText}\n*Medidas:* ${data.largo}m x ${data.alto}m\n*Precio Estimado:* ${precioFormateado}\n\nQuedamos a tus órdenes.`;
+                const mensaje = `¡Hola ${data.cliente}! Aquí tienes la cotización de tu proyecto en Aluminios Pro:\n\n${desgloseLineas}\n\n*Total Estimado:* ${totalFinalFmt}\n\nQuedamos a tus órdenes para cualquier duda.`;
                 window.open(`https://wa.me/52${data.telefono}?text=${encodeURIComponent(mensaje)}`, '_blank');
+
+                // Limpiar carrito después de enviar
+                partidasCarrito = [];
+                renderizarCarrito();
 
             } catch (err) {
                 alert('Error de conexión con el servidor.');
@@ -198,6 +318,5 @@ import Layout from '../layouts/Layout.astro';
         });
     }
 
-    // Calcular al cargar la página por primera vez
     window.addEventListener('DOMContentLoaded', calcularEnVivo);
 </script>
