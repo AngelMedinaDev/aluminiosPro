@@ -1,0 +1,102 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+export const prerender = false;
+
+const motivo = Astro.url.searchParams.get('motivo');
+---
+
+<Layout title="Iniciar Sesión | Aluminios Pro">
+    <div class="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
+        <div class="max-w-md w-full bg-white rounded-2xl shadow-2xl overflow-hidden border-t-4 border-blue-600 p-8">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-blue-600 text-white font-black text-2xl mb-3 shadow-lg">
+                    AP
+                </div>
+                <h1 class="text-2xl font-black text-slate-800 m-0">Aluminios Pro</h1>
+                <p class="text-sm text-slate-500 mt-1">Ingresa con tu cuenta de taller para cotizar</p>
+            </div>
+
+            <form id="login-form" class="space-y-5">
+                <div id="error-box" class="hidden p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs font-bold text-center"></div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Correo Electrónico</label>
+                    <input
+                        type="email"
+                        id="email"
+                        placeholder="taller@correo.com"
+                        class="w-full p-3 border border-slate-300 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none"
+                        required
+                    />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Contraseña</label>
+                    <input
+                        type="password"
+                        id="password"
+                        placeholder="••••••••"
+                        class="w-full p-3 border border-slate-300 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none"
+                        required
+                    />
+                </div>
+
+                <button
+                    type="submit"
+                    id="btn-login"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl text-base shadow-lg cursor-pointer border-0 transition-colors"
+                >
+                    Entrar al Sistema
+                </button>
+            </form>
+        </div>
+    </div>
+</Layout>
+
+<script is:inline>
+    const form = document.getElementById('login-form');
+    const errorBox = document.getElementById('error-box');
+    const btnLogin = document.getElementById('btn-login');
+
+    // Mostrar aviso si fue desconectado y limpiar la URL para que no se quede pegado el mensaje
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('motivo') === 'otro_dispositivo') {
+        errorBox.innerText = '⚠️ Se cerró tu sesión anterior porque esta cuenta se abrió en otro navegador o dispositivo.';
+        errorBox.classList.remove('hidden');
+        window.history.replaceState({}, document.title, '/login');
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorBox.classList.add('hidden');
+        btnLogin.disabled = true;
+        btnLogin.innerText = 'Verificando acceso...';
+
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+
+        try {
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                window.location.replace('/');
+            } else {
+                errorBox.innerText = data.message || 'Credenciales incorrectas';
+                errorBox.classList.remove('hidden');
+                btnLogin.disabled = false;
+                btnLogin.innerText = 'Entrar al Sistema';
+            }
+        } catch (err) {
+            errorBox.innerText = 'Error de conexión con el servidor';
+            errorBox.classList.remove('hidden');
+            btnLogin.disabled = false;
+            btnLogin.innerText = 'Entrar al Sistema';
+        }
+    });
+</script>
