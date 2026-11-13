@@ -1,0 +1,575 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { createClient } from '@supabase/supabase-js';
+
+export const prerender = false;
+
+const locals = Astro.locals as any;
+const perfil = locals.perfil;
+if (perfil?.rol !== 'admin') {
+    return Astro.redirect('/');
+}
+
+const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || import.meta.env.SUPABASE_URL;
+const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+const { data: empresas } = await supabase
+    .from('empresas')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+const { data: usuarios } = await supabase
+    .from('sesiones_usuarios')
+    .select('*')
+    .not('empresa_id', 'is', null)
+    .order('updated_at', { ascending: false });
+
+const { data: cotizaciones } = await supabase
+    .from('cotizaciones')
+    .select('id, empresa_id, total, estatus');
+
+const listaEmpresas = empresas || [];
+const listaUsuarios = usuarios || [];
+const listaCotizaciones = cotizaciones || [];
+const originUrl = Astro.url.origin;
+
+// Fecha default de vencimiento (+30 días a partir de hoy)
+const fechaMas30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+const hoyISO = new Date().toISOString().split('T')[0];
+
+function calcularDiasRestantes(fechaStr: any) {
+    if (!fechaStr) return 999;
+    const hoy = new Date(hoyISO).getTime();
+    const vence = new Date(fechaStr).getTime();
+    return Math.ceil((vence - hoy) / (1000 * 60 * 60 * 24));
+}
+---
+
+<Layout title="Super Admin | Aluminios Pro">
+    <div class="min-h-screen bg-slate-100 text-slate-800 font-sans pb-14">
+        <header class="bg-slate-900 text-white shadow-md p-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <span class="bg-amber-500 text-slate-900 text-xs font-black px-2.5 py-1 rounded uppercase">Super Admin</span>
+                <h1 class="text-xl font-bold m-0 text-white">Centro de Control SaaS</h1>
+            </div>
+            <nav class="flex gap-5 items-center text-sm">
+                <a href="/" class="text-slate-300 hover:text-white no-underline font-medium">Ir al Cotizador</a>
+                <a href="/seguimiento" class="text-slate-300 hover:text-white no-underline font-medium">Seguimiento</a>
+                <a href="/configurador" class="text-slate-300 hover:text-white no-underline font-medium">Precios</a>
+            </nav>
+        </header>
+
+        <main class="max-w-6xl mx-auto p-4 mt-6 space-y-8">
+            <!-- KPIs Globales del SaaS -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="bg-white p-4 rounded-xl shadow border-l-4 border-blue-600">
+                    <p class="text-[11px] font-bold uppercase text-slate-400 m-0">Talleres Totales</p>
+                    <p class="text-2xl font-black text-slate-800 mt-1 mb-0">{listaEmpresas.length}</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow border-l-4 border-emerald-600">
+                    <p class="text-[11px] font-bold uppercase text-slate-400 m-0">Licencias (Usuarios)</p>
+                    <p class="text-2xl font-black text-emerald-600 mt-1 mb-0">{listaUsuarios.length}</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow border-l-4 border-purple-600">
+                    <p class="text-[11px] font-bold uppercase text-slate-400 m-0">Cotizaciones Creadas</p>
+                    <p class="text-2xl font-black text-purple-600 mt-1 mb-0">{listaCotizaciones.length}</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow border-l-4 border-amber-500">
+                    <p class="text-[11px] font-bold uppercase text-slate-400 m-0">Por Vencer (≤ 5 días)</p>
+                    <p class="text-2xl font-black text-amber-600 mt-1 mb-0">
+                        {listaEmpresas.filter((e: any) => calcularDiasRestantes(e.fecha_vencimiento) <= 5).length}
+                    </p>
+                </div>
+            </div>
+
+            <!-- Formularios de Alta -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 1. DAR DE ALTA NUEVO TALLER -->
+                <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6 border-t-4 border-amber-500">
+                    <h2 class="text-xl font-bold text-slate-800 m-0 mb-1">1. Registrar Nuevo Taller (Con su 1ra Licencia)</h2>
+                    <p class="text-xs text-slate-500 mt-0 mb-4">Configura su plan, su fecha de corte/vencimiento, logo y PIN de 4 dígitos.</p>
+
+                    <form id="form-nuevo-taller" class="space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Nombre del Taller</label>
+                                <input type="text" id="nombre_taller" placeholder="Ej. Aluminios Don Juan" class="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 text-sm" required />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Celular Dueño (10 díg)</label>
+                                <input type="tel" id="telefono" maxlength="10" inputmode="numeric" placeholder="8112345678" class="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 font-bold text-sm" required />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-slate-600 mb-1">PIN (4 números)</label>
+                                <input type="text" id="pin_acceso" maxlength="4" inputmode="numeric" placeholder="1234" class="w-full p-2.5 border border-slate-300 rounded-lg bg-amber-50 font-black text-center tracking-widest text-sm" required />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Plan Contratado</label>
+                                <select id="plan_nombre" class="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 font-bold text-sm">
+                                    <option value="Plan Básico">Plan Básico</option>
+                                    <option value="Plan Pro" selected>Plan Pro</option>
+                                    <option value="Plan Full / Plus">Plan Full / Plus</option>
+                                    <option value="Prueba Gratis">Prueba Gratis</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Fecha Vencimiento</label>
+                                <input type="date" id="fecha_vencimiento" value={fechaMas30} class="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 font-semibold text-sm" required />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Logo desde tu PC</label>
+                                <input type="file" id="logo_file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 cursor-pointer" />
+                            </div>
+                        </div>
+
+                        <img id="logo_preview" class="hidden h-12 w-auto object-contain rounded border border-slate-300 bg-white p-1" alt="Vista previa" />
+
+                        <div class="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-slate-100">
+                            <div class="flex flex-wrap gap-5 text-xs font-bold text-slate-700">
+                                <label class="flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" id="tiene_crm" checked class="w-4 h-4 accent-blue-600" />
+                                    CRM Seguimiento
+                                </label>
+                                <label class="flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" id="tiene_excel" checked class="w-4 h-4 accent-emerald-600" />
+                                    Exportar Excel
+                                </label>
+                                <label class="flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" id="tiene_pdf" checked class="w-4 h-4 accent-purple-600" />
+                                    Cotización PDF Pro
+                                </label>
+                            </div>
+
+                            <button type="submit" id="btn-crear-taller" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl shadow cursor-pointer border-0 text-sm">
+                                + Crear Taller
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 2. AGREGAR VENDEDOR / LICENCIA EXTRA -->
+                <div class="bg-white rounded-xl shadow-lg p-6 border-t-4 border-emerald-600">
+                    <h2 class="text-lg font-bold text-slate-800 m-0 mb-1">2. Sumar Vendedor a Taller</h2>
+                    <p class="text-xs text-slate-500 mt-0 mb-4">Agrega un 2do o 3er usuario al mismo taller. Sus cotizaciones saldrán con su nombre en el CRM.</p>
+
+                    <form id="form-nuevo-vendedor" class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Selecciona el Taller</label>
+                            <select id="vend_empresa_id" class="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 font-semibold text-sm" required>
+                                <option value="">-- Elige un taller --</option>
+                                {listaEmpresas.map((emp: any) => (
+                                    <option value={emp.id}>{emp.nombre_taller} (#{emp.id})</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Nombre del Vendedor</label>
+                            <input type="text" id="vend_nombre" placeholder="Ej. Pedro (Mostrador)" class="w-full p-2 border border-slate-300 rounded-lg bg-slate-50 text-sm" required />
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Celular (10 díg)</label>
+                                <input type="tel" id="vend_telefono" maxlength="10" inputmode="numeric" placeholder="8122334455" class="w-full p-2 border border-slate-300 rounded-lg bg-slate-50 font-bold text-sm" required />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-slate-600 mb-1">PIN (4 núm)</label>
+                                <input type="text" id="vend_pin" maxlength="4" inputmode="numeric" placeholder="5678" class="w-full p-2 border border-slate-300 rounded-lg bg-amber-50 font-black text-center text-sm" required />
+                            </div>
+                        </div>
+                        <button type="submit" id="btn-crear-vendedor" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl shadow cursor-pointer border-0 text-sm mt-2">
+                            + Agregar Licencia Extra
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Listado de Talleres con Filtros de Búsqueda, Planes y Vencimiento -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden border-t-4 border-slate-800">
+                <div class="p-5 border-b border-slate-200 space-y-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800 m-0">Talleres, Suscripciones y Conteo por Empresa</h2>
+                            <p class="text-xs text-slate-500 m-0 mt-1">Filtra por taller, plan o próximos vencimientos para enviar recordatorio de pago por WhatsApp.</p>
+                        </div>
+                    </div>
+
+                    <!-- Barra de Filtros del Admin -->
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">Buscar Taller o Teléfono</label>
+                            <input type="text" id="admin-filtro-texto" placeholder="Ej. Don Juan o 81..." class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-slate-50" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">Filtrar por Plan</label>
+                            <select id="admin-filtro-plan" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-slate-50 font-semibold">
+                                <option value="Todos">Todos los planes</option>
+                                <option value="Plan Básico">Plan Básico</option>
+                                <option value="Plan Pro">Plan Pro</option>
+                                <option value="Plan Full / Plus">Plan Full / Plus</option>
+                                <option value="Prueba Gratis">Prueba Gratis</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">Estado de Suscripción / Cobro</label>
+                            <select id="admin-filtro-vencimiento" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-slate-50 font-semibold">
+                                <option value="Todos">Todos los talleres</option>
+                                <option value="por_vencer">⚠️ Por vencer (5 días o menos) o Vencidos</option>
+                                <option value="activos">✅ Solo Activos</option>
+                                <option value="pausados">⛔ Solo Pausados</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">Ordenar Talleres</label>
+                            <select id="admin-filtro-orden" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-slate-50 font-semibold">
+                                <option value="vencimiento">Próximos a vencer primero</option>
+                                <option value="mas_usuarios">Más licencias primero</option>
+                                <option value="mas_cotizaciones">Más cotizaciones primero</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="admin-lista-talleres" class="divide-y divide-slate-200">
+                    {listaEmpresas.length === 0 ? (
+                        <div class="p-8 text-center text-slate-400">
+                            Aún no has dado de alta ningún taller.
+                        </div>
+                    ) : (
+                        listaEmpresas.map((emp: any) => {
+                            const licenciasDelTaller = listaUsuarios.filter((u: any) => Number(u.empresa_id) === Number(emp.id));
+                            const cotizacionesDelTaller = listaCotizaciones.filter((c: any) => Number(c.empresa_id) === Number(emp.id));
+                            const vendidasDelTaller = cotizacionesDelTaller.filter((c: any) => c.estatus === 'Vendido').length;
+                            const planActual = emp.plan_nombre || 'Plan Pro';
+                            const fechaVence = emp.fecha_vencimiento || fechaMas30;
+                            const diasRestantes = calcularDiasRestantes(fechaVence);
+
+                            const msgRecordatorioPago = `¡Hola! Te escribimos de *Aluminios Pro* para recordarte que la suscripción de *${emp.nombre_taller}* (${planActual} - ${licenciasDelTaller.length} licencia(s)) tiene fecha de renovación el *${fechaVence}*. ¿Te apoyamos con los datos para mantener activo tu sistema?`;
+
+                            return (
+                                <div
+                                    class="p-5 space-y-4 hover:bg-slate-50/60 card-taller-admin"
+                                    data-busqueda={`${emp.nombre_taller} ${emp.telefono || ''}`.toLowerCase()}
+                                    data-plan={planActual}
+                                    data-activo={emp.suscripcion_activa ? '1' : '0'}
+                                    data-dias={diasRestantes}
+                                    data-usuarios={licenciasDelTaller.length}
+                                    data-cotizaciones={cotizacionesDelTaller.length}
+                                >
+                                    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                                        <!-- Nombre, Logo y Contadores por Empresa -->
+                                        <div class="flex items-center gap-3">
+                                            {emp.logo_url ? (
+                                                <img src={emp.logo_url} class="h-12 w-12 object-contain rounded-lg border bg-white p-1" alt="Logo" />
+                                            ) : (
+                                                <div class="h-12 w-12 rounded-lg bg-blue-600 text-white font-black flex items-center justify-center text-lg">
+                                                    {emp.nombre_taller.substring(0, 2).toUpperCase()}
+                                                </div>
+                                            )}
+                                            <div>
+                                                <div class="flex items-center gap-2 flex-wrap">
+                                                    <h3 class="text-lg font-black text-slate-900 m-0">{emp.nombre_taller}</h3>
+                                                    <span class="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                                                        👥 {licenciasDelTaller.length} usuario(s)
+                                                    </span>
+                                                    <span class="text-xs font-bold bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
+                                                        📋 {cotizacionesDelTaller.length} cotizaciones ({vendidasDelTaller} vendidas)
+                                                    </span>
+                                                </div>
+                                                <p class="text-xs text-slate-500 m-0 mt-1">
+                                                    ID Taller: #{emp.id} • Tel Titular: <strong>{emp.telefono}</strong>
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <!-- Control de Plan, Fecha de Vencimiento y Recordatorio WhatsApp -->
+                                        <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                                            <select
+                                                class="cambio-campo-emp p-2 border border-slate-300 rounded-lg text-xs font-bold bg-white"
+                                                data-id={emp.id}
+                                                data-campo="plan_nombre"
+                                            >
+                                                <option value="Plan Básico" selected={planActual === 'Plan Básico'}>Plan Básico</option>
+                                                <option value="Plan Pro" selected={planActual === 'Plan Pro'}>Plan Pro</option>
+                                                <option value="Plan Full / Plus" selected={planActual === 'Plan Full / Plus'}>Plan Full / Plus</option>
+                                                <option value="Prueba Gratis" selected={planActual === 'Prueba Gratis'}>Prueba Gratis</option>
+                                            </select>
+
+                                            <div class="flex items-center gap-1 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-300">
+                                                <span class="text-[11px] font-bold text-slate-500">Vence:</span>
+                                                <input
+                                                    type="date"
+                                                    value={fechaVence}
+                                                    data-id={emp.id}
+                                                    data-campo="fecha_vencimiento"
+                                                    class="cambio-campo-emp text-xs font-bold bg-transparent border-0 outline-none cursor-pointer"
+                                                />
+                                            </div>
+
+                                            <span class={`text-xs font-black px-2.5 py-1.5 rounded-lg ${diasRestantes < 0 ? 'bg-red-100 text-red-700' : diasRestantes <= 5 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700'}`}>
+                                                {diasRestantes < 0 ? `Vencido hace ${Math.abs(diasRestantes)}d` : diasRestantes === 0 ? '¡Vence HOY!' : `${diasRestantes} días rest.`}
+                                            </span>
+
+                                            <a
+                                                href={`https://wa.me/52${emp.telefono}?text=${encodeURIComponent(msgRecordatorioPago)}`}
+                                                target="_blank"
+                                                class="bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black px-3 py-2 rounded-lg no-underline shadow"
+                                                title="Mandar aviso de vencimiento por WhatsApp"
+                                            >
+                                                🔔 Cobrar / Renovar
+                                            </a>
+                                        </div>
+                                    </div>
+
+                                    <!-- Interruptores de Módulos (Feature Flags) -->
+                                    <div class="flex flex-wrap items-center gap-5 bg-slate-100 px-4 py-2 rounded-xl text-xs font-bold">
+                                        <span class="text-slate-400 uppercase text-[10px]">Módulos activos:</span>
+                                        <label class="flex items-center gap-1.5 cursor-pointer">
+                                            <input type="checkbox" class="toggle-flag w-4 h-4 accent-green-600" data-id={emp.id} data-campo="suscripcion_activa" checked={emp.suscripcion_activa} />
+                                            Acceso Permitido
+                                        </label>
+                                        <label class="flex items-center gap-1.5 cursor-pointer">
+                                            <input type="checkbox" class="toggle-flag w-4 h-4 accent-blue-600" data-id={emp.id} data-campo="tiene_crm" checked={emp.tiene_crm} />
+                                            CRM Seguimiento
+                                        </label>
+                                        <label class="flex items-center gap-1.5 cursor-pointer">
+                                            <input type="checkbox" class="toggle-flag w-4 h-4 accent-emerald-600" data-id={emp.id} data-campo="tiene_excel" checked={emp.tiene_excel} />
+                                            Exportar Excel
+                                        </label>
+                                        <label class="flex items-center gap-1.5 cursor-pointer">
+                                            <input type="checkbox" class="toggle-flag w-4 h-4 accent-purple-600" data-id={emp.id} data-campo="tiene_pdf" checked={emp.tiene_pdf} />
+                                            Cotización PDF Pro
+                                        </label>
+                                    </div>
+
+                                    <!-- Lista de Usuarios / Licencias de este Taller -->
+                                    <div class="bg-slate-50 rounded-xl border border-slate-200 divide-y divide-slate-200 text-xs">
+                                        {licenciasDelTaller.map((u: any) => {
+                                            const token = u.token_activacion || emp.token_activacion;
+                                            const usado = u.token_usado ?? emp.token_usado;
+                                            const linkMagico = `${originUrl}/activar?t=${token}`;
+                                            const msg = `¡Hola ${u.nombre_vendedor || ''}! Aquí está tu acceso personal de *${emp.nombre_taller}* en *Aluminios Pro*.\n\n👉 *Toca este enlace para activar tu celular (válido para 1 dispositivo):*\n${linkMagico}\n\n📱 *Tus datos de entrada:*\n• Celular: ${u.telefono || emp.telefono}\n• PIN: *${u.pin_acceso || emp.pin_acceso}*`;
+
+                                            return (
+                                                <div class="p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                                    <div>
+                                                        <span class="font-bold text-slate-800">👤 {u.nombre_vendedor || 'Titular'}</span>
+                                                        <span class="mx-2 text-slate-400">•</span>
+                                                        <span class="font-semibold text-slate-700">Cel: {u.telefono || emp.telefono}</span>
+                                                        <span class="ml-2 bg-amber-100 text-amber-900 font-black px-2 py-0.5 rounded">PIN: {u.pin_acceso || emp.pin_acceso}</span>
+                                                    </div>
+                                                    <div class="flex items-center gap-2">
+                                                        <a
+                                                            href={`https://wa.me/52${u.telefono || emp.telefono}?text=${encodeURIComponent(msg)}`}
+                                                            target="_blank"
+                                                            class="bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-1.5 rounded-lg no-underline shadow"
+                                                        >
+                                                            📲 Mandar Acceso ({usado ? 'Usado' : 'Disponible'})
+                                                        </a>
+                                                        <button
+                                                            type="button"
+                                                            class="btn-regenerar-usr bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-2.5 py-1.5 rounded-lg border-0 cursor-pointer"
+                                                            data-userid={u.user_id}
+                                                        >
+                                                            🔄 Reactivar Link
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
+        </main>
+    </div>
+</Layout>
+
+<script is:inline>
+    const inputLogo = document.getElementById('logo_file');
+    const previewLogo = document.getElementById('logo_preview');
+    let logoBase64 = '';
+
+    if (inputLogo) {
+        inputLogo.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const maxW = 320;
+                    const scale = Math.min(1, maxW / img.width);
+                    canvas.width = img.width * scale;
+                    canvas.height = img.height * scale;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    logoBase64 = canvas.toDataURL('image/png', 0.85);
+                    previewLogo.src = logoBase64;
+                    previewLogo.classList.remove('hidden');
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    document.getElementById('form-nuevo-taller').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('btn-crear-taller');
+        btn.disabled = true;
+        btn.innerText = 'Guardando...';
+
+        const payload = {
+            accion: 'crear',
+            nombre_taller: document.getElementById('nombre_taller').value,
+            telefono: document.getElementById('telefono').value,
+            pin_acceso: document.getElementById('pin_acceso').value,
+            plan_nombre: document.getElementById('plan_nombre').value,
+            fecha_vencimiento: document.getElementById('fecha_vencimiento').value,
+            logo_url: logoBase64,
+            tiene_crm: document.getElementById('tiene_crm').checked,
+            tiene_excel: document.getElementById('tiene_excel').checked,
+            tiene_pdf: document.getElementById('tiene_pdf').checked
+        };
+
+        const res = await fetch('/api/admin-empresas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Aviso: ' + data.message);
+            btn.disabled = false;
+            btn.innerText = '+ Crear Taller';
+        }
+    });
+
+    document.getElementById('form-nuevo-vendedor').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('btn-crear-vendedor');
+        btn.disabled = true;
+        btn.innerText = 'Agregando...';
+
+        const payload = {
+            accion: 'agregar_vendedor',
+            empresa_id: document.getElementById('vend_empresa_id').value,
+            nombre_vendedor: document.getElementById('vend_nombre').value,
+            telefono: document.getElementById('vend_telefono').value,
+            pin_acceso: document.getElementById('vend_pin').value
+        };
+
+        const res = await fetch('/api/admin-empresas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Aviso: ' + data.message);
+            btn.disabled = false;
+            btn.innerText = '+ Agregar Licencia Extra';
+        }
+    });
+
+    document.querySelectorAll('.toggle-flag').forEach(chk => {
+        chk.addEventListener('change', async (e) => {
+            const el = e.target;
+            await fetch('/api/admin-empresas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    accion: 'toggle',
+                    id: el.dataset.id,
+                    campo: el.dataset.campo,
+                    valor: el.checked
+                })
+            });
+        });
+    });
+
+    document.querySelectorAll('.cambio-campo-emp').forEach(input => {
+        input.addEventListener('change', async (e) => {
+            const el = e.target;
+            await fetch('/api/admin-empresas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    accion: 'actualizar_campo',
+                    id: el.dataset.id,
+                    campo: el.dataset.campo,
+                    valor: el.value
+                })
+            });
+            window.location.reload();
+        });
+    });
+
+    document.querySelectorAll('.btn-regenerar-usr').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const user_id = e.currentTarget.dataset.userid;
+            const res = await fetch('/api/admin-empresas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accion: 'regenerar_link_usuario', user_id })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('✅ Link reactivado para este vendedor.');
+                window.location.reload();
+            }
+        });
+    });
+
+    // Filtros y Ordenamiento en vivo del Panel Admin
+    const fTexto = document.getElementById('admin-filtro-texto');
+    const fPlan = document.getElementById('admin-filtro-plan');
+    const fVence = document.getElementById('admin-filtro-vencimiento');
+    const fOrden = document.getElementById('admin-filtro-orden');
+
+    function filtrarTalleresAdmin() {
+        const txt = (fTexto?.value || '').toLowerCase().trim();
+        const plan = fPlan?.value || 'Todos';
+        const vence = fVence?.value || 'Todos';
+        const orden = fOrden?.value || 'vencimiento';
+
+        const cards = Array.from(document.querySelectorAll('.card-taller-admin'));
+        const contenedor = document.getElementById('admin-lista-talleres');
+
+        cards.sort((a, b) => {
+            if (orden === 'vencimiento') return Number(a.dataset.dias) - Number(b.dataset.dias);
+            if (orden === 'mas_usuarios') return Number(b.dataset.usuarios) - Number(a.dataset.usuarios);
+            if (orden === 'mas_cotizaciones') return Number(b.dataset.cotizaciones) - Number(a.dataset.cotizaciones);
+            return 0;
+        });
+
+        cards.forEach(card => {
+            const matchTxt = !txt || (card.dataset.busqueda || '').includes(txt);
+            const matchPlan = plan === 'Todos' || card.dataset.plan === plan;
+            let matchVence = true;
+            if (vence === 'por_vencer') matchVence = Number(card.dataset.dias) <= 5;
+            if (vence === 'activos') matchVence = card.dataset.activo === '1';
+            if (vence === 'pausados') matchVence = card.dataset.activo === '0';
+
+            card.style.display = (matchTxt && matchPlan && matchVence) ? '' : 'none';
+            if (contenedor) contenedor.appendChild(card);
+        });
+    }
+
+    [fTexto, fPlan, fVence, fOrden].forEach(el => {
+        if (el) el.addEventListener('input', filtrarTalleresAdmin);
+        if (el) el.addEventListener('change', filtrarTalleresAdmin);
+    });
+</script>

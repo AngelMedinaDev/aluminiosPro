@@ -7,6 +7,8 @@ export const POST = async ({ request }) => {
     try {
         const data = await request.json();
         const {
+            empresa_id = null,
+            vendedor_nombre = 'Titular',
             cliente = '',
             telefono = '',
             tipo = 'v2',
@@ -22,18 +24,16 @@ export const POST = async ({ request }) => {
         const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY;
         const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
-        // 1. Obtener precios configurados en Supabase
         let cfg = { riel: 50, jamba: 50, zoclo: 50, cerco_fijo: 50, traslape: 50, cerco_chapa: 50, mosquitero: 50, vidrio: 50, herrajes: 5, factor: 2.5 };
         if (supabase) {
             const { data: preciosDB } = await supabase
                 .from('configuracion_precios')
                 .select('*')
                 .eq('id', 1)
-                .single();
+                .maybeSingle();
             if (preciosDB) cfg = preciosDB;
         }
 
-        // Función interna para calcular cualquier pieza con las fórmulas ocultas
         const calcularPieza = (t, l, a, c, f) => {
             let unitario = 0;
             const largoNum = Number(l) || 0;
@@ -67,7 +67,6 @@ export const POST = async ({ request }) => {
             return { costoTotal, precioVenta, cantNum, largoNum, altoNum, factorNum };
         };
 
-        // Si solo estamos calculando en vivo la pieza actual en pantalla
         if (!guardar) {
             const res = calcularPieza(tipo, largo, alto, cantidad, factor);
             return new Response(JSON.stringify({
@@ -78,7 +77,6 @@ export const POST = async ({ request }) => {
             }), { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
 
-        // Si vamos a guardar: verificamos si mandó lista de partidas o solo la pieza actual
         const listaParaProcesar = Array.isArray(partidas) && partidas.length > 0
             ? partidas
             : [{ tipo, cantidad, largo, alto, factor }];
@@ -114,10 +112,14 @@ export const POST = async ({ request }) => {
             ? `${partidasCalculadas.length} partidas (${partidasCalculadas.reduce((a, b) => a + b.cantidad, 0)} pzas)`
             : null;
 
-        const { error } = await supabase
+        const ahoraISO = new Date().toISOString();
+
+        const { data: insertado, error } = await supabase
             .from('cotizaciones')
             .insert([
                 {
+                    empresa_id: empresa_id || null,
+                    vendedor_nombre: vendedor_nombre || 'Titular',
                     cliente_nombre: cliente || 'Cliente WhatsApp',
                     cliente_telefono: telefono,
                     total: granPrecioVenta,
@@ -131,10 +133,16 @@ export const POST = async ({ request }) => {
                         costo_real: granCostoReal,
                         factor_aplicado: primera.factor,
                         partidas: partidasCalculadas,
-                        estatus: 'Pendiente'
+                        vendedor_creador: vendedor_nombre || 'Titular',
+                        estatus: 'Pendiente',
+                        historial_fechas: {
+                            creado: ahoraISO
+                        }
                     }
                 }
-            ]);
+            ])
+            .select('id')
+            .single();
 
         if (error) {
             return new Response(JSON.stringify({
@@ -149,6 +157,7 @@ export const POST = async ({ request }) => {
         return new Response(JSON.stringify({
             success: true,
             guardado: true,
+            cotizacionId: insertado?.id,
             costoReal: granCostoReal,
             precioVenta: granPrecioVenta,
             partidas: partidasCalculadas

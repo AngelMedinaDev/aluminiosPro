@@ -6,12 +6,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
     const { url, cookies, redirect, locals } = context;
     const pathname = url.pathname;
 
-    // Rutas públicas
+    // Rutas públicas libres
     if (
         pathname === '/login' ||
+        pathname === '/activar' ||
+        pathname === '/cotizacion' ||
+        pathname.startsWith('/cotizacion/') ||
         pathname === '/api/login' ||
         pathname === '/api/logout' ||
-        pathname.startsWith('/cotizacion/') ||
         pathname.startsWith('/_astro') ||
         pathname.includes('.')
     ) {
@@ -41,10 +43,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
         return redirect('/login');
     }
 
-    // CANDADO ESTRICTO DE UN SOLO DISPOSITIVO EN sesiones_usuarios
     const { data: sesionDB, error: sesionError } = await supabase
         .from('sesiones_usuarios')
-        .select('current_session_id, rol, empresa_id')
+        .select('current_session_id, rol, empresa_id, nombre_vendedor, telefono')
         .eq('user_id', data.user.id)
         .maybeSingle();
 
@@ -64,8 +65,46 @@ export const onRequest = defineMiddleware(async (context, next) => {
         return redirect('/login?motivo=otro_dispositivo');
     }
 
+    let empresa = {
+        id: null,
+        nombre_taller: 'Aluminios Pro',
+        logo_url: '',
+        suscripcion_activa: true,
+        tiene_crm: true,
+        tiene_excel: true,
+        tiene_pdf: true,
+        plan_nombre: 'Admin Master',
+        fecha_vencimiento: null
+    };
+
+    if (sesionDB.empresa_id) {
+        const { data: empData } = await supabase
+            .from('empresas')
+            .select('*')
+            .eq('id', sesionDB.empresa_id)
+            .maybeSingle();
+
+        if (empData) {
+            empresa = empData;
+            if (empData.suscripcion_activa === false) {
+                cookies.delete('sb-access-token', { path: '/' });
+                cookies.delete('sb-refresh-token', { path: '/' });
+                cookies.delete('sb-session-lock', { path: '/' });
+                return redirect('/login?motivo=suspendido');
+            }
+        }
+    }
+
+    if (pathname === '/seguimiento' && !empresa.tiene_crm && sesionDB.rol !== 'admin') {
+        return redirect('/');
+    }
+
     locals.user = data.user;
-    locals.perfil = sesionDB;
+    locals.perfil = {
+        ...sesionDB,
+        nombre_mostrar: sesionDB.nombre_vendedor || (sesionDB.rol === 'admin' ? 'Super Admin' : 'Titular')
+    };
+    locals.empresa = empresa;
 
     return next();
 });

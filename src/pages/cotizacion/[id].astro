@@ -1,0 +1,161 @@
+---
+// src/pages/cotizacion/[id].astro
+import Layout from '../../layouts/Layout.astro';
+import { createClient } from '@supabase/supabase-js';
+
+export const prerender = false;
+
+const { id } = Astro.params;
+
+const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || import.meta.env.SUPABASE_URL;
+const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+const { data: cot } = await supabase
+    .from('cotizaciones')
+    .select('*')
+    .eq('id', Number(id))
+    .maybeSingle();
+
+if (!cot) {
+    return new Response('Cotización no encontrada', { status: 404 });
+}
+
+let empresa = {
+    nombre_taller: 'Aluminios Pro',
+    telefono: '',
+    logo_url: ''
+};
+
+if (cot.empresa_id) {
+    const { data: empData } = await supabase
+        .from('empresas')
+        .select('*')
+        .eq('id', cot.empresa_id)
+        .maybeSingle();
+    if (empData) empresa = empData;
+}
+
+const det = cot.detalles_json || {};
+const nombreTipo = (t: string) => t === 'v2' ? 'Ventana Corrediza 2"' : t === 'pta3' ? 'Puerta de Aluminio 3"' : t;
+
+const partidas = Array.isArray(det.partidas) && det.partidas.length > 0
+    ? det.partidas
+    : [{
+        tipo: det.tipo || 'v2',
+        cantidad: det.cantidad || 1,
+        largo: det.largo || 0,
+        alto: det.alto || 0,
+        subtotal: cot.total || 0
+    }];
+
+const fechaFmt = new Date(cot.created_at).toLocaleDateString('es-MX', {
+    day: '2-digit', month: 'long', year: 'numeric'
+});
+const fmtMXN = (n: any) => '$' + (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+---
+
+<Layout title={`Cotización #${cot.id} - ${empresa.nombre_taller}`}>
+    <div class="min-h-screen bg-slate-200 py-8 px-4 print:bg-white print:p-0 font-sans">
+        <!-- Barra de acciones (se esconde automáticamente al descargar/imprimir el PDF) -->
+        <div class="max-w-3xl mx-auto mb-4 flex justify-between items-center bg-slate-900 text-white p-4 rounded-xl shadow print:hidden">
+            <div>
+                <p class="font-bold text-sm m-0">Documento de Cotización Formal</p>
+                <p class="text-xs text-slate-400 m-0">Guárdalo como PDF para enviarlo o imprimirlo</p>
+            </div>
+            <button
+                onclick="window.print()"
+                class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2.5 rounded-lg text-sm cursor-pointer border-0 shadow-lg"
+            >
+                📄 Descargar / Imprimir PDF
+            </button>
+        </div>
+
+        <!-- Hoja Membretada -->
+        <div class="max-w-3xl mx-auto bg-white p-8 sm:p-12 rounded-2xl shadow-xl print:shadow-none print:rounded-none text-slate-800">
+            <!-- Encabezado con Logo y Folio -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b-2 border-blue-600 pb-6 gap-4">
+                <div class="flex items-center gap-4">
+                    {empresa.logo_url ? (
+                        <img src={empresa.logo_url} alt="Logo" class="h-16 w-auto object-contain rounded" />
+                    ) : (
+                        <div class="w-14 h-14 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-2xl">
+                            {empresa.nombre_taller.substring(0, 2).toUpperCase()}
+                        </div>
+                    )}
+                    <div>
+                        <h1 class="text-2xl font-black text-slate-900 m-0 uppercase">{empresa.nombre_taller}</h1>
+                        <p class="text-xs text-slate-500 m-0 mt-1">Especialistas en Cancelería de Aluminio y Vidrio</p>
+                        {empresa.telefono && <p class="text-xs font-bold text-blue-600 m-0 mt-0.5">Tel / WhatsApp: +52 {empresa.telefono}</p>}
+                    </div>
+                </div>
+
+                <div class="text-left sm:text-right bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <p class="text-xs font-bold uppercase text-slate-400 m-0">Folio de Cotización</p>
+                    <p class="text-2xl font-black text-blue-600 m-0">#{String(cot.id).padStart(4, '0')}</p>
+                    <p class="text-xs text-slate-500 m-0 mt-1">{fechaFmt}</p>
+                </div>
+            </div>
+
+            <!-- Datos del Cliente -->
+            <div class="my-6 bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between gap-2">
+                <div>
+                    <p class="text-xs font-bold uppercase text-slate-400 m-0">Preparado para el cliente:</p>
+                    <p class="text-lg font-bold text-slate-900 m-0">{cot.cliente_nombre}</p>
+                </div>
+                {cot.cliente_telefono && (
+                    <div class="sm:text-right">
+                        <p class="text-xs font-bold uppercase text-slate-400 m-0">Teléfono de Contacto:</p>
+                        <p class="text-sm font-semibold text-slate-700 m-0">+52 {cot.cliente_telefono}</p>
+                    </div>
+                )}
+            </div>
+
+            <!-- Tabla Desglosada de Partidas -->
+            <table class="w-full text-left border-collapse my-6">
+                <thead>
+                    <tr class="bg-slate-800 text-white text-xs uppercase">
+                        <th class="p-3 rounded-tl-lg">Cant.</th>
+                        <th class="p-3">Descripción del Trabajo</th>
+                        <th class="p-3">Medidas (Largo x Alto)</th>
+                        <th class="p-3 text-right">Precio Unit.</th>
+                        <th class="p-3 text-right rounded-tr-lg">Importe</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 text-sm">
+                    {partidas.map((p: any) => {
+                        const cant = Number(p.cantidad) || 1;
+                        const sub = Number(p.subtotal) || 0;
+                        const unit = sub / cant;
+                        return (
+                            <tr>
+                                <td class="p-3.5 font-bold text-slate-800">{cant} pza(s)</td>
+                                <td class="p-3.5 font-semibold text-slate-800">{nombreTipo(p.tipo)}</td>
+                                <td class="p-3.5 text-slate-600">{p.largo}m x {p.alto}m</td>
+                                <td class="p-3.5 text-right text-slate-600">{fmtMXN(unit)}</td>
+                                <td class="p-3.5 text-right font-bold text-slate-900">{fmtMXN(sub)}</td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+
+            <!-- Gran Total -->
+            <div class="flex justify-end mt-6">
+                <div class="w-full sm:w-72 bg-slate-900 text-white p-5 rounded-xl">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs uppercase font-bold text-slate-300">Total Cotizado:</span>
+                        <span class="text-2xl font-black text-green-400">{fmtMXN(cot.total)}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Condiciones Comerciales -->
+            <div class="mt-10 pt-6 border-t border-slate-200 text-xs text-slate-500 space-y-1">
+                <p class="font-bold text-slate-700 m-0">Condiciones comerciales:</p>
+                <p class="m-0">• Cotización vigente por 15 días naturales a partir de la fecha de emisión.</p>
+                <p class="m-0">• Se requiere 50% de anticipo para iniciar fabricación y 50% contra entrega/instalación.</p>
+            </div>
+        </div>
+    </div>
+</Layout>

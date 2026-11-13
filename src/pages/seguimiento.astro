@@ -4,18 +4,36 @@ import { createClient } from '@supabase/supabase-js';
 
 export const prerender = false;
 
+const locals = Astro.locals as any;
+const perfil = locals.perfil || { rol: 'admin', empresa_id: null, nombre_mostrar: 'Titular' };
+const empresa = locals.empresa || {
+    id: null,
+    nombre_taller: 'Aluminios Pro',
+    tiene_excel: true,
+    tiene_pdf: true
+};
+
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || import.meta.env.SUPABASE_URL;
 const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const { data: cotizaciones, error } = await supabase
+let query = supabase
     .from('cotizaciones')
     .select('*')
     .order('created_at', { ascending: false });
 
+if (perfil.empresa_id) {
+    query = query.eq('empresa_id', perfil.empresa_id);
+}
+
+const { data: cotizaciones, error } = await query;
 const lista = cotizaciones || [];
 
 const obtenerEstatus = (c: any) => c.estatus || c.detalles_json?.estatus || 'Pendiente';
+const obtenerVendedor = (c: any) => c.vendedor_nombre || c.detalles_json?.vendedor_creador || 'Titular';
+
+// Lista única de vendedores para el filtro
+const vendedoresUnicos = Array.from(new Set(lista.map((c: any) => obtenerVendedor(c))));
 
 const totalProspectos = lista.length;
 const totalVendido = lista
@@ -30,27 +48,36 @@ function obtenerNombreTipo(tipo: any) {
     if (tipo === 'pta3') return 'Puerta 3"';
     return tipo || 'Trabajo';
 }
+
+function formatearFechaHora(iso: any) {
+    if (!iso) return null;
+    return new Date(iso).toLocaleDateString('es-MX', {
+        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+}
 ---
 
-<Layout title="Seguimiento de Clientes | Aluminios Pro">
-    <div class="min-h-screen bg-slate-100 text-slate-800 font-sans">
+<Layout title={`Seguimiento CRM | ${empresa.nombre_taller}`}>
+    <div id="crm-wrapper" class="min-h-screen bg-slate-100 text-slate-800 font-sans pb-12" data-vendedor-actual={perfil.nombre_mostrar}>
         <header class="bg-blue-600 text-white shadow-md p-4 flex justify-between items-center">
-            <h1 class="text-2xl font-bold tracking-tight m-0 text-white">Aluminios Pro</h1>
-            <nav class="flex gap-6 items-center">
+            <div>
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight m-0 text-white">{empresa.nombre_taller}</h1>
+                <p class="text-[11px] text-blue-200 m-0">Sesión activa: <strong>{perfil.nombre_mostrar}</strong></p>
+            </div>
+            <nav class="flex gap-4 sm:gap-6 items-center text-sm">
                 <a href="/" class="text-blue-100 hover:text-white font-medium no-underline transition-colors">Cotizar</a>
                 <a href="/seguimiento" class="text-white font-bold no-underline border-b-2 border-white pb-0.5">Seguimiento</a>
-                <a href="/configurador" class="text-blue-100 hover:text-white transition-colors" title="Configurar Precios">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                </a>
-                <form action="/api/logout" method="POST"><button type="submit">Salir</button></form>
+                <a href="/configurador" class="text-blue-100 hover:text-white transition-colors font-medium no-underline">Precios</a>
+                {perfil.rol === 'admin' && (
+                    <a href="/admin" class="bg-amber-400 hover:bg-amber-300 text-slate-900 font-black px-2.5 py-1 rounded-lg no-underline text-xs">
+                        Admin
+                    </a>
+                )}
             </nav>
         </header>
 
-        <main class="max-w-5xl mx-auto p-4 mt-6 space-y-6">
-            <!-- Tarjetas de Resumen Dinámicas (Se actualizan al filtrar) -->
+        <main class="max-w-6xl mx-auto p-4 mt-6 space-y-6">
+            <!-- Tarjetas de Resumen Dinámicas -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="bg-white p-5 rounded-xl shadow border-l-4 border-blue-600">
                     <p class="text-xs font-bold uppercase text-slate-400 m-0">Prospectos Mostrados</p>
@@ -72,35 +99,45 @@ function obtenerNombreTipo(tipo: any) {
 
             <!-- Contenedor Principal del Historial -->
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border-t-4 border-blue-600">
-                <!-- Barra de Filtros Avanzados y Exportación -->
                 <div class="p-5 border-b border-slate-200 space-y-4">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                         <div>
-                            <h2 class="text-xl font-bold text-slate-800 m-0">Historial y Filtros de Prospectos</h2>
-                            <p class="text-sm text-slate-500 m-0">Filtra por estatus, fechas de venta o acomoda por monto</p>
+                            <h2 class="text-xl font-bold text-slate-800 m-0">Control de Prospectos, Fechas y Vendedores</h2>
+                            <p class="text-sm text-slate-500 m-0">Monitorea quién levantó cada prospecto, cuándo se contactó y cuándo se cerró la venta</p>
                         </div>
                         <div class="flex items-center gap-2 w-full sm:w-auto">
                             <button id="btn-limpiar-filtros" type="button" class="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg cursor-pointer border-0 transition-colors">
                                 Limpiar filtros
                             </button>
-                            <button id="btn-exportar-excel" type="button" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg cursor-pointer border-0 shadow transition-colors">
-                                📊 Exportar a Excel
-                            </button>
+                            {empresa.tiene_excel && (
+                                <button id="btn-exportar-excel" type="button" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg cursor-pointer border-0 shadow transition-colors">
+                                    📊 Exportar a Excel
+                                </button>
+                            )}
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 pt-2">
                         <div>
                             <label class="block text-xs font-bold text-slate-500 mb-1">Buscar Cliente / Tel</label>
-                            <input type="text" id="filtro-busqueda" placeholder="Ej. Angel o 8122..." class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-slate-50" />
+                            <input type="text" id="filtro-busqueda" placeholder="Ej. Juan o 81..." class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-slate-50" />
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-500 mb-1">Estatus</label>
                             <select id="filtro-estatus" class="w-full p-2 border border-slate-300 rounded-lg text-sm font-medium bg-slate-50">
-                                <option value="Todos">Todos los estatus</option>
+                                <option value="Todos">Todos</option>
                                 <option value="Pendiente">⏳ Solo Pendientes</option>
                                 <option value="Vendido">✅ Solo Vendidos</option>
                                 <option value="Descartado">❌ Descartados</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">De quién es (Vendedor)</label>
+                            <select id="filtro-vendedor" class="w-full p-2 border border-slate-300 rounded-lg text-sm font-medium bg-slate-50">
+                                <option value="Todos">Todos los vendedores</option>
+                                {vendedoresUnicos.map((v: any) => (
+                                    <option value={v}>{v}</option>
+                                ))}
                             </select>
                         </div>
                         <div>
@@ -114,10 +151,10 @@ function obtenerNombreTipo(tipo: any) {
                         <div>
                             <label class="block text-xs font-bold text-slate-500 mb-1">Ordenar por</label>
                             <select id="filtro-orden" class="w-full p-2 border border-slate-300 rounded-lg text-sm font-medium bg-slate-50">
-                                <option value="recientes">Más recientes primero</option>
-                                <option value="antiguos">Más antiguos primero</option>
-                                <option value="mayor">Mayor precio primero</option>
-                                <option value="menor">Menor precio primero</option>
+                                <option value="recientes">Más recientes</option>
+                                <option value="antiguos">Más antiguos</option>
+                                <option value="mayor">Mayor monto</option>
+                                <option value="menor">Menor monto</option>
                             </select>
                         </div>
                     </div>
@@ -129,91 +166,24 @@ function obtenerNombreTipo(tipo: any) {
                     </div>
                 )}
 
-                <!-- VISTA MÓVIL (Tarjetas apiladas para celular) -->
-                <div id="contenedor-movil" class="block sm:hidden divide-y divide-slate-200">
-                    {lista.length === 0 ? (
-                        <div class="p-8 text-center text-slate-400">
-                            Aún no hay prospectos guardados.
-                        </div>
-                    ) : (
-                        lista.map((item: any) => {
-                            const det = item.detalles_json || {};
-                            const estatus = obtenerEstatus(item);
-                            const tel = item.cliente_telefono || det.telefono || '';
-                            const nombreTrabajo = obtenerNombreTipo(det.tipo);
-                            const fechaObj = new Date(item.created_at);
-                            const fechaISO = fechaObj.toISOString().split('T')[0];
-                            const timestamp = fechaObj.getTime();
-                            const monto = Number(item.total) || 0;
-                            const fecha = fechaObj.toLocaleDateString('es-MX', {
-                                day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                            });
-                            const totalFmt = '$' + monto.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                            const msgSeguimiento = `¡Hola ${item.cliente_nombre}! Te escribo de Aluminios Pro para saber si tuviste oportunidad de revisar la cotización de tu ${nombreTrabajo} (${totalFmt}). ¿Tienes alguna duda?`;
-
-                            return (
-                                <div
-                                    class="p-4 space-y-3 bg-white item-prospecto-movil"
-                                    data-estatus={estatus}
-                                    data-fecha={fechaISO}
-                                    data-timestamp={timestamp}
-                                    data-total={monto}
-                                    data-busqueda={`${item.cliente_nombre || ''} ${tel}`.toLowerCase()}
-                                >
-                                    <div class="flex justify-between items-start">
-                                        <div>
-                                            <p class="font-bold text-slate-900 text-base m-0">{item.cliente_nombre}</p>
-                                            <p class="text-xs text-slate-500 m-0">+52 {tel} • {fecha}</p>
-                                        </div>
-                                        <span class="font-black text-green-600 text-lg">{totalFmt}</span>
-                                    </div>
-                                    <div class="bg-slate-50 p-2.5 rounded-lg text-xs text-slate-700">
-                                        <p class="font-semibold m-0">{det.cantidad || 1}x {nombreTrabajo} ({det.largo || 0}m x {det.alto || 0}m)</p>
-                                        {det.costo_real && <p class="text-slate-400 m-0 mt-0.5">Costo base: ${Number(det.costo_real).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
-                                    </div>
-                                    <div class="flex justify-between items-center pt-2 gap-2">
-                                        <select
-                                            class="select-estatus p-2 rounded-lg border text-xs font-bold bg-white w-1/2 cursor-pointer"
-                                            data-id={item.id}
-                                            data-detalles={JSON.stringify(det)}
-                                        >
-                                            <option value="Pendiente" selected={estatus === 'Pendiente'}>⏳ Pendiente</option>
-                                            <option value="Vendido" selected={estatus === 'Vendido'}>✅ Vendido</option>
-                                            <option value="Descartado" selected={estatus === 'Descartado'}>❌ Descartado</option>
-                                        </select>
-                                        {tel && (
-                                            <a
-                                                href={`https://wa.me/52${tel}?text=${encodeURIComponent(msgSeguimiento)}`}
-                                                target="_blank"
-                                                class="flex-1 text-center bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2.5 px-3 rounded-lg no-underline shadow"
-                                            >
-                                                📲 Dar Seguimiento
-                                            </a>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
-
-                <!-- VISTA ESCRITORIO (Tabla limpia para pantallas medianas y grandes) -->
-                <div class="hidden sm:block overflow-x-auto">
+                <!-- TABLA COMPLETA RESPONSIVA -->
+                <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider border-b border-slate-200">
-                                <th class="p-4">Fecha</th>
+                                <th class="p-4">Creación y Historial de Fechas</th>
                                 <th class="p-4">Cliente / WhatsApp</th>
+                                <th class="p-4">Vendedor / Seguimiento</th>
                                 <th class="p-4">Trabajo y Medidas</th>
                                 <th class="p-4">Total Cotizado</th>
                                 <th class="p-4">Estatus</th>
-                                <th class="p-4 text-center">Acción</th>
+                                <th class="p-4 text-center">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="contenedor-tabla" class="divide-y divide-slate-200 text-sm">
                             {lista.length === 0 ? (
                                 <tr>
-                                    <td colspan="6" class="p-8 text-center text-slate-400">
+                                    <td colspan="7" class="p-8 text-center text-slate-400">
                                         Aún no hay prospectos guardados. Envía una cotización por WhatsApp para verla aquí.
                                     </td>
                                 </tr>
@@ -221,6 +191,12 @@ function obtenerNombreTipo(tipo: any) {
                                 lista.map((item: any) => {
                                     const det = item.detalles_json || {};
                                     const estatus = obtenerEstatus(item);
+                                    const vendedorDueno = obtenerVendedor(item);
+                                    const ultimoContactoPor = item.ultimo_seguimiento_por || det.ultimo_seguimiento_por || null;
+                                    const fechaUltimoContacto = formatearFechaHora(item.fecha_ultimo_seguimiento || det.fecha_ultimo_seguimiento);
+                                    const fechaCambioEstatus = formatearFechaHora(item.fecha_cambio_estatus || det.fecha_cambio_estatus);
+                                    const cambiadoPor = det.estatus_cambiado_por || vendedorDueno;
+
                                     const tel = item.cliente_telefono || det.telefono || '';
                                     const nombreTrabajo = obtenerNombreTipo(det.tipo);
                                     const fechaObj = new Date(item.created_at);
@@ -228,17 +204,16 @@ function obtenerNombreTipo(tipo: any) {
                                     const timestamp = fechaObj.getTime();
                                     const monto = Number(item.total) || 0;
                                     const costoReal = Number(det.costo_real) || 0;
-                                    const fecha = fechaObj.toLocaleDateString('es-MX', {
-                                        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                                    });
+                                    const fechaCreacion = formatearFechaHora(item.created_at);
                                     const descTrabajo = `${det.cantidad || 1}x ${nombreTrabajo} (${det.largo || 0}m x ${det.alto || 0}m)`;
                                     const totalFmt = '$' + monto.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                                    const msgSeguimiento = `¡Hola ${item.cliente_nombre}! Te escribo de Aluminios Pro para saber si tuviste oportunidad de revisar la cotización de tu ${nombreTrabajo} (${totalFmt}). ¿Tienes alguna duda?`;
+                                    const msgSeguimiento = `¡Hola ${item.cliente_nombre}! Te escribo de ${empresa.nombre_taller} para saber si tuviste oportunidad de revisar la cotización de tu ${nombreTrabajo} (${totalFmt}). ¿Tienes alguna duda?`;
 
                                     return (
                                         <tr
                                             class="hover:bg-slate-50 item-prospecto-tabla"
                                             data-estatus={estatus}
+                                            data-vendedor={vendedorDueno}
                                             data-fecha={fechaISO}
                                             data-timestamp={timestamp}
                                             data-total={monto}
@@ -248,13 +223,51 @@ function obtenerNombreTipo(tipo: any) {
                                             data-trabajo={nombreTrabajo}
                                             data-cantidad={det.cantidad || 1}
                                             data-medidas={`${det.largo || 0}m x ${det.alto || 0}m`}
-                                            data-busqueda={`${item.cliente_nombre || ''} ${tel}`.toLowerCase()}
+                                            data-fecha-seguimiento={fechaUltimoContacto || 'Sin seguimiento adicional'}
+                                            data-fecha-estatus={fechaCambioEstatus || fechaCreacion}
+                                            data-busqueda={`${item.cliente_nombre || ''} ${tel} ${vendedorDueno}`.toLowerCase()}
                                         >
-                                            <td class="p-4 text-slate-500 whitespace-nowrap">{fecha}</td>
+                                            <!-- Columna 1: Fechas detalladas -->
+                                            <td class="p-4 whitespace-nowrap space-y-1">
+                                                <p class="text-xs font-bold text-slate-700 m-0">📅 Creado: {fechaCreacion}</p>
+                                                {fechaUltimoContacto ? (
+                                                    <p class="text-[11px] font-semibold text-blue-600 m-0">
+                                                        📲 Últ. contacto: {fechaUltimoContacto}
+                                                    </p>
+                                                ) : (
+                                                    <p class="text-[11px] text-slate-400 m-0">📲 Sin re-contacto aún</p>
+                                                )}
+                                                {fechaCambioEstatus && estatus !== 'Pendiente' && (
+                                                    <p class={`text-[11px] font-bold m-0 ${estatus === 'Vendido' ? 'text-green-600' : 'text-red-500'}`}>
+                                                        {estatus === 'Vendido' ? '✅ Vendido el: ' : '❌ Descartado el: '} {fechaCambioEstatus}
+                                                    </p>
+                                                )}
+                                            </td>
+
+                                            <!-- Columna 2: Cliente -->
                                             <td class="p-4">
-                                                <p class="font-bold text-slate-800 m-0">{item.cliente_nombre}</p>
+                                                <p class="font-bold text-slate-900 m-0">{item.cliente_nombre}</p>
                                                 <p class="text-xs text-slate-500 m-0">+52 {tel}</p>
                                             </td>
+
+                                            <!-- Columna 3: De quién es el prospecto y quién lo contactó -->
+                                            <td class="p-4 space-y-1">
+                                                <span class="inline-block bg-blue-50 text-blue-800 text-xs font-bold px-2.5 py-0.5 rounded-md border border-blue-200">
+                                                    👤 De: {vendedorDueno}
+                                                </span>
+                                                {ultimoContactoPor && (
+                                                    <p class="text-[11px] text-slate-500 m-0">
+                                                        Seguimiento por: <strong>{ultimoContactoPor}</strong>
+                                                    </p>
+                                                )}
+                                                {fechaCambioEstatus && estatus !== 'Pendiente' && (
+                                                    <p class="text-[10px] text-slate-400 m-0">
+                                                        Cerrado por: {cambiadoPor}
+                                                    </p>
+                                                )}
+                                            </td>
+
+                                            <!-- Columna 4: Trabajo -->
                                             <td class="p-4">
                                                 <p class="font-medium text-slate-700 m-0">{descTrabajo}</p>
                                                 {det.costo_real && (
@@ -263,13 +276,19 @@ function obtenerNombreTipo(tipo: any) {
                                                     </p>
                                                 )}
                                             </td>
+
+                                            <!-- Columna 5: Total -->
                                             <td class="p-4 font-black text-green-600 text-base whitespace-nowrap">
                                                 {totalFmt}
                                             </td>
+
+                                            <!-- Columna 6: Selector de Estatus con Confirmación -->
                                             <td class="p-4">
                                                 <select
-                                                    class="select-estatus p-1.5 rounded-lg border text-xs font-bold cursor-pointer"
+                                                    class="select-estatus p-2 rounded-lg border text-xs font-bold cursor-pointer bg-white"
                                                     data-id={item.id}
+                                                    data-estatus-previo={estatus}
+                                                    data-cliente={item.cliente_nombre}
                                                     data-detalles={JSON.stringify(det)}
                                                 >
                                                     <option value="Pendiente" selected={estatus === 'Pendiente'}>⏳ Pendiente</option>
@@ -277,14 +296,27 @@ function obtenerNombreTipo(tipo: any) {
                                                     <option value="Descartado" selected={estatus === 'Descartado'}>❌ Descartado</option>
                                                 </select>
                                             </td>
-                                            <td class="p-4 text-center">
+
+                                            <!-- Columna 7: Botones WhatsApp y PDF -->
+                                            <td class="p-4 text-center whitespace-nowrap space-x-1">
                                                 {tel && (
                                                     <a
                                                         href={`https://wa.me/52${tel}?text=${encodeURIComponent(msgSeguimiento)}`}
                                                         target="_blank"
-                                                        class="inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs font-bold px-3 py-2 rounded-lg no-underline transition-colors shadow"
+                                                        data-id={item.id}
+                                                        data-detalles={JSON.stringify(det)}
+                                                        class="btn-dar-seguimiento inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs font-bold px-3 py-2 rounded-lg no-underline transition-colors shadow"
                                                     >
-                                                        Dar Seguimiento
+                                                        📲 Seguimiento
+                                                    </a>
+                                                )}
+                                                {empresa.tiene_pdf && (
+                                                    <a
+                                                        href={`/cotizacion?id=${item.id}`}
+                                                        target="_blank"
+                                                        class="inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-lg no-underline transition-colors shadow"
+                                                    >
+                                                        📄 PDF
                                                     </a>
                                                 )}
                                             </td>
@@ -301,8 +333,12 @@ function obtenerNombreTipo(tipo: any) {
 </Layout>
 
 <script is:inline>
+    const crmWrapper = document.getElementById('crm-wrapper');
+    const vendedorActual = crmWrapper?.dataset.vendedorActual || 'Titular';
+
     const inputBusqueda = document.getElementById('filtro-busqueda');
     const selectEstatus = document.getElementById('filtro-estatus');
+    const selectVendedor = document.getElementById('filtro-vendedor');
     const inputDesde = document.getElementById('filtro-desde');
     const inputHasta = document.getElementById('filtro-hasta');
     const selectOrden = document.getElementById('filtro-orden');
@@ -312,20 +348,21 @@ function obtenerNombreTipo(tipo: any) {
     function aplicarFiltrosYOrden() {
         const texto = (inputBusqueda?.value || '').toLowerCase().trim();
         const estatus = selectEstatus?.value || 'Todos';
+        const vendedor = selectVendedor?.value || 'Todos';
         const desde = inputDesde?.value || '';
         const hasta = inputHasta?.value || '';
         const orden = selectOrden?.value || 'recientes';
 
         const filasTabla = Array.from(document.querySelectorAll('.item-prospecto-tabla'));
-        const tarjetasMovil = Array.from(document.querySelectorAll('.item-prospecto-movil'));
 
         const evaluarItem = (el) => {
             const matchTexto = !texto || (el.dataset.busqueda || '').includes(texto);
             const matchEstatus = estatus === 'Todos' || el.dataset.estatus === estatus;
+            const matchVendedor = vendedor === 'Todos' || el.dataset.vendedor === vendedor;
             const fechaItem = el.dataset.fecha || '';
             const matchDesde = !desde || fechaItem >= desde;
             const matchHasta = !hasta || fechaItem <= hasta;
-            return matchTexto && matchEstatus && matchDesde && matchHasta;
+            return matchTexto && matchEstatus && matchVendedor && matchDesde && matchHasta;
         };
 
         const compararItems = (a, b) => {
@@ -341,10 +378,7 @@ function obtenerNombreTipo(tipo: any) {
         let sumaVendidos = 0;
 
         filasTabla.sort(compararItems);
-        tarjetasMovil.sort(compararItems);
-
         const tbody = document.getElementById('contenedor-tabla');
-        const divMovil = document.getElementById('contenedor-movil');
 
         filasTabla.forEach(fila => {
             const visible = evaluarItem(fila);
@@ -359,19 +393,13 @@ function obtenerNombreTipo(tipo: any) {
             }
         });
 
-        tarjetasMovil.forEach(card => {
-            const visible = evaluarItem(card);
-            card.style.display = visible ? '' : 'none';
-            if (divMovil) divMovil.appendChild(card);
-        });
-
         const fmt = (n) => '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('kpi-prospectos').innerText = conteoVisibles;
         document.getElementById('kpi-pendientes').innerText = fmt(sumaPendientes);
         document.getElementById('kpi-vendidos').innerText = fmt(sumaVendidos);
     }
 
-    [inputBusqueda, selectEstatus, inputDesde, inputHasta, selectOrden].forEach(el => {
+    [inputBusqueda, selectEstatus, selectVendedor, inputDesde, inputHasta, selectOrden].forEach(el => {
         if (el) el.addEventListener('input', aplicarFiltrosYOrden);
         if (el) el.addEventListener('change', aplicarFiltrosYOrden);
     });
@@ -380,6 +408,7 @@ function obtenerNombreTipo(tipo: any) {
         btnLimpiar.addEventListener('click', () => {
             if (inputBusqueda) inputBusqueda.value = '';
             if (selectEstatus) selectEstatus.value = 'Todos';
+            if (selectVendedor) selectVendedor.value = 'Todos';
             if (inputDesde) inputDesde.value = '';
             if (inputHasta) inputHasta.value = '';
             if (selectOrden) selectOrden.value = 'recientes';
@@ -387,7 +416,7 @@ function obtenerNombreTipo(tipo: any) {
         });
     }
 
-    // Exportar los registros filtrados actualmente a Excel (.csv con UTF-8 BOM)
+    // Exportar a Excel incluyendo Vendedor y Fechas de Seguimiento / Cierre
     if (btnExportar) {
         btnExportar.addEventListener('click', () => {
             const filasVisibles = Array.from(document.querySelectorAll('.item-prospecto-tabla'))
@@ -399,16 +428,19 @@ function obtenerNombreTipo(tipo: any) {
             }
 
             const encabezados = [
-                'Fecha',
+                'Fecha Creacion',
                 'Cliente',
                 'WhatsApp',
+                'Prospecto de (Vendedor)',
                 'Trabajo',
                 'Cantidad',
                 'Medidas',
                 'Costo Base (MXN)',
                 'Precio Venta (MXN)',
-                'Ganancia Estimada (MXN)',
-                'Estatus'
+                'Ganancia (MXN)',
+                'Estatus',
+                'Fecha Ultimo Seguimiento',
+                'Fecha Cambio Estatus'
             ];
 
             const escaparCSV = (texto) => `"${String(texto ?? '').replace(/"/g, '""')}"`;
@@ -422,17 +454,19 @@ function obtenerNombreTipo(tipo: any) {
                     escaparCSV(fila.dataset.fecha),
                     escaparCSV(fila.dataset.cliente),
                     escaparCSV('+52 ' + (fila.dataset.telefono || '')),
+                    escaparCSV(fila.dataset.vendedor),
                     escaparCSV(fila.dataset.trabajo),
                     escaparCSV(fila.dataset.cantidad),
                     escaparCSV(fila.dataset.medidas),
                     costo.toFixed(2),
                     venta.toFixed(2),
                     ganancia.toFixed(2),
-                    escaparCSV(fila.dataset.estatus)
+                    escaparCSV(fila.dataset.estatus),
+                    escaparCSV(fila.dataset.fechaSeguimiento),
+                    escaparCSV(fila.dataset.fechaEstatus)
                 ].join(',');
             });
 
-            // El carácter \uFEFF (BOM) hace que Excel en Windows abra acentos y columnas automáticamente
             const contenidoCSV = '\uFEFF' + [encabezados.join(','), ...lineas].join('\r\n');
             const blob = new Blob([contenidoCSV], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
@@ -448,21 +482,61 @@ function obtenerNombreTipo(tipo: any) {
         });
     }
 
+    // Registrar fecha y nombre del vendedor cuando le pica a "Dar Seguimiento"
+    document.querySelectorAll('.btn-dar-seguimiento').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const el = e.currentTarget;
+            const id = el.dataset.id;
+            const detallesActuales = JSON.parse(el.dataset.detalles || '{}');
+
+            try {
+                await fetch('/api/seguimiento', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: Number(id),
+                        accion: 'registrar_contacto',
+                        vendedorAccion: vendedorActual,
+                        detallesActuales
+                    })
+                });
+                setTimeout(() => window.location.reload(), 800);
+            } catch (err) {
+                console.error(err);
+            }
+        });
+    });
+
+    // Confirmación de seguridad antes de cambiar estatus y mover fechas
     document.querySelectorAll('.select-estatus').forEach(select => {
         select.addEventListener('change', async (e) => {
             const el = e.target;
             const id = el.dataset.id;
-            const detallesActuales = JSON.parse(el.dataset.detalles || '{}');
+            const estatusPrevio = el.dataset.estatusPrevio;
+            const clienteNombre = el.dataset.cliente || 'este prospecto';
             const nuevoEstatus = el.value;
 
+            const confirmar = window.confirm(
+                `⚠️ ¿Estás seguro de cambiar el estatus de "${clienteNombre}" de [${estatusPrevio}] a [${nuevoEstatus}]?\n\nEsto actualizará la fecha oficial de cierre/estatus al día y hora de hoy.`
+            );
+
+            if (!confirmar) {
+                el.value = estatusPrevio;
+                return;
+            }
+
+            const detallesActuales = JSON.parse(el.dataset.detalles || '{}');
             el.disabled = true;
+
             try {
                 const res = await fetch('/api/seguimiento', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         id: Number(id),
+                        accion: 'cambiar_estatus',
                         estatusActual: nuevoEstatus,
+                        vendedorAccion: vendedorActual,
                         detallesActuales
                     })
                 });
@@ -471,9 +545,11 @@ function obtenerNombreTipo(tipo: any) {
                     window.location.reload();
                 } else {
                     alert('No se pudo actualizar el estatus: ' + data.message);
+                    el.value = estatusPrevio;
                 }
             } catch (err) {
                 alert('Error de conexión al actualizar estatus.');
+                el.value = estatusPrevio;
             } finally {
                 el.disabled = false;
             }

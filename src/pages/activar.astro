@@ -1,0 +1,76 @@
+---
+// src/pages/activar.astro
+import { createClient } from '@supabase/supabase-js';
+import crypto from 'node:crypto';
+
+export const prerender = false;
+
+const tokenActivacion = Astro.url.searchParams.get('t');
+if (!tokenActivacion) {
+    return Astro.redirect('/login');
+}
+
+const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || import.meta.env.SUPABASE_URL;
+const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Buscamos la licencia del usuario por su token_activacion
+const { data: licencia } = await supabase
+    .from('sesiones_usuarios')
+    .select('*')
+    .eq('token_activacion', tokenActivacion)
+    .maybeSingle();
+
+if (!licencia || licencia.token_usado) {
+    return Astro.redirect('/login?motivo=link_usado');
+}
+
+if (licencia.empresa_id) {
+    const { data: empresa } = await supabase
+        .from('empresas')
+        .select('suscripcion_activa')
+        .eq('id', licencia.empresa_id)
+        .maybeSingle();
+
+    if (empresa && empresa.suscripcion_activa === false) {
+        return Astro.redirect('/login?motivo=suspendido');
+    }
+}
+
+const emailInterno = `${licencia.telefono}@aluminiospro.app`;
+const passwordInterno = `AP-pin-${licencia.pin_acceso}`;
+
+const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
+    email: emailInterno,
+    password: passwordInterno
+});
+
+if (authErr || !authData?.session) {
+    return Astro.redirect('/login');
+}
+
+const nuevoSessionId = crypto.randomUUID();
+
+await supabase
+    .from('sesiones_usuarios')
+    .update({
+        token_usado: true,
+        current_session_id: nuevoSessionId,
+        updated_at: new Date().toISOString()
+    })
+    .eq('user_id', licencia.user_id);
+
+const cookieOptions = {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: false,
+    maxAge: 60 * 60 * 24 * 365
+};
+
+Astro.cookies.set('sb-access-token', authData.session.access_token, cookieOptions);
+Astro.cookies.set('sb-refresh-token', authData.session.refresh_token, cookieOptions);
+Astro.cookies.set('sb-session-lock', nuevoSessionId, cookieOptions);
+
+return Astro.redirect('/');
+---

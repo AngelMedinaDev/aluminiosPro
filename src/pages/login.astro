@@ -2,101 +2,156 @@
 import Layout from '../layouts/Layout.astro';
 
 export const prerender = false;
-
-const motivo = Astro.url.searchParams.get('motivo');
 ---
 
-<Layout title="Iniciar Sesión | Aluminios Pro">
+<Layout title="Entrar | Aluminios Pro">
     <div class="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
         <div class="max-w-md w-full bg-white rounded-2xl shadow-2xl overflow-hidden border-t-4 border-blue-600 p-8">
-            <div class="text-center mb-8">
-                <div class="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-blue-600 text-white font-black text-2xl mb-3 shadow-lg">
+            <div class="text-center mb-6">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600 text-white font-black text-3xl mb-3 shadow-lg">
                     AP
                 </div>
                 <h1 class="text-2xl font-black text-slate-800 m-0">Aluminios Pro</h1>
-                <p class="text-sm text-slate-500 mt-1">Ingresa con tu cuenta de taller para cotizar</p>
+                <p class="text-sm text-slate-500 mt-1">Escribe tu número de celular y tu PIN de 4 dígitos</p>
             </div>
 
-            <form id="login-form" class="space-y-5">
-                <div id="error-box" class="hidden p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs font-bold text-center"></div>
+            <div id="error-box" class="hidden mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-bold text-center"></div>
 
+            <!-- MODO PRINCIPAL: CELULAR + PIN 4 DÍGITOS -->
+            <form id="login-pin-form" class="space-y-5">
                 <div>
-                    <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Correo Electrónico</label>
+                    <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Tu Celular (10 dígitos)</label>
                     <input
-                        type="email"
-                        id="email"
-                        placeholder="taller@correo.com"
-                        class="w-full p-3 border border-slate-300 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none"
+                        type="tel"
+                        id="telefono"
+                        inputmode="numeric"
+                        maxlength="10"
+                        placeholder="81 1234 5678"
+                        class="w-full p-4 border-2 border-slate-300 rounded-xl bg-slate-50 text-slate-900 text-2xl font-bold text-center tracking-widest focus:border-blue-600 outline-none"
                         required
                     />
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Contraseña</label>
+                    <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Tu PIN (4 números)</label>
                     <input
                         type="password"
-                        id="password"
-                        placeholder="••••••••"
-                        class="w-full p-3 border border-slate-300 rounded-xl bg-slate-50 text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none"
+                        id="pin"
+                        inputmode="numeric"
+                        maxlength="4"
+                        placeholder="••••"
+                        class="w-full p-4 border-2 border-slate-300 rounded-xl bg-slate-50 text-slate-900 text-3xl font-black text-center tracking-[1em] focus:border-blue-600 outline-none"
                         required
                     />
                 </div>
 
                 <button
                     type="submit"
-                    id="btn-login"
-                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl text-base shadow-lg cursor-pointer border-0 transition-colors"
+                    id="btn-login-pin"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-4 rounded-xl text-lg shadow-lg cursor-pointer border-0 transition-colors"
                 >
-                    Entrar al Sistema
+                    Entrar al Cotizador
                 </button>
             </form>
+
+            <!-- MODO RESPALDO: CORREO ADMIN -->
+            <form id="login-email-form" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Correo Administrador</label>
+                    <input type="email" id="email" placeholder="admin@correo.com" class="w-full p-3 border border-slate-300 rounded-xl bg-slate-50 text-slate-800" />
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Contraseña</label>
+                    <input type="password" id="password" placeholder="••••••••" class="w-full p-3 border border-slate-300 rounded-xl bg-slate-50 text-slate-800" />
+                </div>
+                <button type="submit" id="btn-login-email" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3.5 px-4 rounded-xl text-base shadow cursor-pointer border-0">
+                    Entrar con Correo
+                </button>
+            </form>
+
+            <div class="mt-6 text-center border-t border-slate-100 pt-4">
+                <button type="button" id="toggle-modo-login" class="text-xs text-slate-400 hover:text-blue-600 bg-transparent border-0 cursor-pointer font-semibold">
+                    ¿Eres administrador con correo? Clic aquí
+                </button>
+            </div>
         </div>
     </div>
 </Layout>
 
 <script is:inline>
-    const form = document.getElementById('login-form');
+    const formPin = document.getElementById('login-pin-form');
+    const formEmail = document.getElementById('login-email-form');
+    const toggleBtn = document.getElementById('toggle-modo-login');
     const errorBox = document.getElementById('error-box');
-    const btnLogin = document.getElementById('btn-login');
 
-    // Mostrar aviso si fue desconectado y limpiar la URL para que no se quede pegado el mensaje
     const params = new URLSearchParams(window.location.search);
     if (params.get('motivo') === 'otro_dispositivo') {
-        errorBox.innerText = '⚠️ Se cerró tu sesión anterior porque esta cuenta se abrió en otro navegador o dispositivo.';
+        errorBox.innerText = '⚠️ Se cerró tu sesión porque esta cuenta fue abierta en otro celular o computadora.';
+        errorBox.classList.remove('hidden');
+        window.history.replaceState({}, document.title, '/login');
+    } else if (params.get('motivo') === 'link_usado') {
+        errorBox.innerText = '⚠️ Este enlace de activación ya fue utilizado antes. Ingresa con tu Celular y tu PIN de 4 dígitos.';
+        errorBox.classList.remove('hidden');
+        window.history.replaceState({}, document.title, '/login');
+    } else if (params.get('motivo') === 'suspendido') {
+        errorBox.innerText = '⛔ El acceso de este taller está pausado temporalmente. Contacta a soporte.';
         errorBox.classList.remove('hidden');
         window.history.replaceState({}, document.title, '/login');
     }
 
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        errorBox.classList.add('hidden');
-        btnLogin.disabled = true;
-        btnLogin.innerText = 'Verificando acceso...';
+    toggleBtn.addEventListener('click', () => {
+        const usandoPin = !formPin.classList.contains('hidden');
+        if (usandoPin) {
+            formPin.classList.add('hidden');
+            formEmail.classList.remove('hidden');
+            toggleBtn.innerText = '← Volver a entrada rápida con Celular y PIN';
+        } else {
+            formEmail.classList.add('hidden');
+            formPin.classList.remove('hidden');
+            toggleBtn.innerText = '¿Eres administrador con correo? Clic aquí';
+        }
+    });
 
-        const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value;
+    async function enviarLogin(payload, btnElement, textoOriginal) {
+        errorBox.classList.add('hidden');
+        btnElement.disabled = true;
+        btnElement.innerText = 'Entrando...';
 
         try {
             const res = await fetch('/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
+                body: JSON.stringify(payload)
             });
             const data = await res.json();
 
             if (data.success) {
                 window.location.replace('/');
             } else {
-                errorBox.innerText = data.message || 'Credenciales incorrectas';
+                errorBox.innerText = data.message || 'Datos incorrectos';
                 errorBox.classList.remove('hidden');
-                btnLogin.disabled = false;
-                btnLogin.innerText = 'Entrar al Sistema';
+                btnElement.disabled = false;
+                btnElement.innerText = textoOriginal;
             }
         } catch (err) {
             errorBox.innerText = 'Error de conexión con el servidor';
             errorBox.classList.remove('hidden');
-            btnLogin.disabled = false;
-            btnLogin.innerText = 'Entrar al Sistema';
+            btnElement.disabled = false;
+            btnElement.innerText = textoOriginal;
         }
+    }
+
+    formPin.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const telefono = document.getElementById('telefono').value.replace(/\D/g, '');
+        const pin = document.getElementById('pin').value.replace(/\D/g, '');
+        enviarLogin({ telefono, pin }, document.getElementById('btn-login-pin'), 'Entrar al Cotizador');
+    });
+
+    formEmail.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+        enviarLogin({ email, password }, document.getElementById('btn-login-email'), 'Entrar con Correo');
     });
 </script>
